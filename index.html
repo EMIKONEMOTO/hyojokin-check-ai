@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>表情筋チェックAI</title>
+  <meta name="description" content="ブラウザだけで完結する、表情筋セルフチェックAI。写真や動画をどこにも送らず、目の開き・左右差・笑顔のタイプを数値で見える化します。" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>表情筋チェック<span class="ai">AI</span></h1>
+    <p class="tagline">目の開き・左右差・笑顔のタイプを、その場で見える化</p>
+    <p class="privacy-badge">🔒 画像はどこにも送信されません。すべてあなたのブラウザの中だけで処理します。</p>
+  </header>
+
+  <main>
+    <!-- 入力モード切り替え -->
+    <nav class="mode-tabs" aria-label="入力モード">
+      <button class="mode-tab is-active" data-mode="camera">📷 カメラ</button>
+      <button class="mode-tab" data-mode="photo">🖼️ 写真をアップ</button>
+    </nav>
+
+    <section class="stage-wrap">
+      <div class="stage">
+        <video id="webcam" autoplay playsinline muted></video>
+        <img id="photo" alt="" hidden />
+        <canvas id="overlay"></canvas>
+        <div id="stage-message" class="stage-message">読み込み中…</div>
+      </div>
+
+      <div class="controls">
+        <div class="control-group" data-for="camera">
+          <button id="startCam" class="btn btn-primary">カメラを開始</button>
+          <button id="stopCam" class="btn" hidden>停止</button>
+          <label class="toggle">
+            <input type="checkbox" id="mirror" checked />
+            <span>左右反転（鏡表示）</span>
+          </label>
+        </div>
+        <div class="control-group" data-for="photo" hidden>
+          <label class="btn btn-primary file-btn">
+            写真を選ぶ
+            <input type="file" id="photoInput" accept="image/*" hidden />
+          </label>
+          <span class="hint">正面・水平に撮った顔写真が最適です</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="showMesh" />
+          <span>顔メッシュを表示</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 計測結果 -->
+    <section class="results" id="results" aria-live="polite">
+      <div class="metric-card" data-metric="eye">
+        <div class="metric-head">
+          <h3>👁 目の開き</h3>
+          <span class="verdict" id="eye-verdict">—</span>
+        </div>
+        <div class="lr-bars">
+          <div class="lr-row"><span class="lr-label">左</span><div class="bar"><div class="bar-fill" id="eyeL-bar"></div></div><span class="lr-val" id="eyeL-val">—</span></div>
+          <div class="lr-row"><span class="lr-label">右</span><div class="bar"><div class="bar-fill" id="eyeR-bar"></div></div><span class="lr-val" id="eyeR-val">—</span></div>
+        </div>
+        <p class="metric-note">左右差 <b id="eye-asym">—</b>（小さいほど左右対称）</p>
+      </div>
+
+      <div class="metric-card" data-metric="mouth">
+        <div class="metric-head">
+          <h3>🙂 口角の高さ</h3>
+          <span class="verdict" id="mouth-verdict">—</span>
+        </div>
+        <div class="lr-bars">
+          <div class="lr-row"><span class="lr-label">左</span><div class="bar"><div class="bar-fill" id="mouthL-bar"></div></div><span class="lr-val" id="mouthL-val">—</span></div>
+          <div class="lr-row"><span class="lr-label">右</span><div class="bar"><div class="bar-fill" id="mouthR-bar"></div></div><span class="lr-val" id="mouthR-val">—</span></div>
+        </div>
+        <p class="metric-note">左右差 <b id="mouth-asym">—</b></p>
+      </div>
+
+      <div class="metric-card" data-metric="symmetry">
+        <div class="metric-head">
+          <h3>⚖️ 顔の左右対称</h3>
+          <span class="verdict big" id="sym-verdict">—</span>
+        </div>
+        <div class="score-ring" id="sym-ring"><span id="sym-score">—</span></div>
+        <p class="metric-note">100に近いほど左右対称</p>
+      </div>
+
+      <div class="metric-card wide" data-metric="smile">
+        <div class="metric-head">
+          <h3>😄 笑顔のタイプ</h3>
+          <span class="verdict" id="smile-verdict">—</span>
+        </div>
+        <p class="metric-note top-note">「横に引く笑顔（笑筋・代償）」より「斜め上に上げる笑顔（大頬骨筋・インナー主導）」が理想</p>
+        <div class="smile-bars">
+          <div class="smile-row">
+            <span class="smile-label">↗️ 頬を斜め上に上げる度<br><small>大頬骨筋・目元 ＝ 理想</small></span>
+            <div class="bar good"><div class="bar-fill" id="cheek-bar"></div></div>
+            <span class="lr-val" id="cheek-val">—</span>
+          </div>
+          <div class="smile-row">
+            <span class="smile-label">↔️ 横に引く度<br><small>笑筋・広頚筋 ＝ 減らしたい癖</small></span>
+            <div class="bar warn"><div class="bar-fill" id="stretch-bar"></div></div>
+            <span class="lr-val" id="stretch-val">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 自動では測れない項目の目視チェック -->
+    <section class="manual-check">
+      <h2>👀 目視チェック（AIでは測りにくい項目）</h2>
+      <p class="section-lead">首の縦スジ・口角横の深い溝は、影や質感の変化なので点では測れません。鏡や写真を見て、自分でチェックして記録しましょう。</p>
+      <ul class="check-list">
+        <li><label><input type="checkbox" class="manual" data-key="neckLine" /> 首に縦スジが浮き出ていない</label></li>
+        <li><label><input type="checkbox" class="manual" data-key="mouthGroove" /> 口角横の深い溝が出ていない</label></li>
+        <li><label><input type="checkbox" class="manual" data-key="lowerLip" /> 下唇を内側に巻き込んでいない</label></li>
+        <li><label><input type="checkbox" class="manual" data-key="neutral" /> 3-1-2のニュートラル（舌・奥歯・オトガイ）ができている</label></li>
+      </ul>
+    </section>
+
+    <!-- 記録 -->
+    <section class="record">
+      <div class="record-head">
+        <h2>📈 記録</h2>
+        <div class="record-actions">
+          <button id="saveBtn" class="btn btn-primary">今の状態を記録</button>
+          <button id="exportBtn" class="btn">書き出し(JSON)</button>
+          <button id="clearBtn" class="btn btn-ghost">全削除</button>
+        </div>
+      </div>
+      <p class="section-lead">記録はこの端末のブラウザ内だけに保存されます（サーバーには送られません）。</p>
+      <div id="history" class="history"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>表情筋チェックAI — すべての処理はブラウザ内（MediaPipe Face Landmarker）。医療行為ではありません。</p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
