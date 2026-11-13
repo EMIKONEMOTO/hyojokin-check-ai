@@ -5,7 +5,7 @@ import {
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
 
 // ===== 設定 =====
-const GEMINI_MODEL = "gemini-flash-latest"; // 既定モデル（404時は自動で使えるものに切替）
+const GEMINI_MODEL = "gemini-flash-lite-latest"; // 既定は軽量・高速モデル（遅い/404時は自動で切替）
 const MODEL_STORE = "hyojokin-gemini-model";
 const KEY_STORE = "hyojokin-gemini-key";
 const STORE_KEY = "hyojokin-records-v1";
@@ -315,36 +315,39 @@ function resizedBase64(maxDim = 1024, quality = 0.85) {
   c.getContext("2d").drawImage(els.still, 0, 0, w, h);
   return c.toDataURL("image/jpeg", quality).split(",")[1];
 }
-// 複数モデルを順に試す（混雑503時は別モデルへ切替、成功したら記憶）
+// 複数モデルを順に試す（遅い/混雑時は別モデルへ切替、成功したら記憶）
 async function getAdvice(key, body) {
-  const primary = localStorage.getItem(MODEL_STORE) || GEMINI_MODEL;
-  const candidates = [primary, "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+  const cached = localStorage.getItem(MODEL_STORE);
+  // 軽量・高速モデルを常に最優先。過去キャッシュは後ろに回す
+  const candidates = ["gemini-flash-lite-latest", "gemini-2.0-flash", "gemini-2.5-flash-lite", cached, "gemini-flash-latest"];
   const tried = new Set();
-  let last = null;
+  let last = null, timedOut = false;
   for (const model of candidates) {
     if (!model || tried.has(model)) continue;
     tried.add(model);
     for (let t = 0; t < 2; t++) {
-      const resp = await callGemini(key, model, body);
+      let resp;
+      try {
+        resp = await callGemini(key, model, body, 30000);
+      } catch (e) {
+        if (e.name === "AbortError") { timedOut = true; break; } // 遅すぎ→次のモデルへ
+        throw e;                                                 // 通信エラーは外へ
+      }
       last = resp;
       if (resp.ok) { try { localStorage.setItem(MODEL_STORE, model); } catch {} return resp; }
-      if (resp.status === 404) break;                         // 存在しない→次のモデル
-      if (resp.status === 503 || resp.status === 500) {        // 混雑→少し待って再試行
+      if (resp.status === 404) break;                            // 存在しない→次のモデル
+      if (resp.status === 503 || resp.status === 500) {          // 混雑→少し待って再試行
         els.advice.innerHTML = `<div class="loading">AIが混み合っています。別のモデルで再試行中…<span class="dots"></span></div>`;
-        await sleep(1200 * (t + 1));
+        await sleep(1000 * (t + 1));
         continue;
       }
-      return resp;                                             // 400/403/429等はそのまま返す
+      return resp;                                               // 400/403/429等はそのまま返す
+    }
+    if (!last || last.status === 404 || timedOut) {
+      els.advice.innerHTML = `<div class="loading">別のAIモデルで試しています…<span class="dots"></span></div>`;
     }
   }
-  if (last && last.status === 404) {                           // 全滅時は利用可能モデルを自動検出
-    const found = await pickModel(key);
-    if (found && !tried.has(found)) {
-      const r = await callGemini(key, found, body);
-      if (r.ok) { try { localStorage.setItem(MODEL_STORE, found); } catch {} }
-      return r;
-    }
-  }
+  if (timedOut && !last) { const e = new Error("timeout"); e.name = "AbortError"; throw e; }
   return last;
 }
 
@@ -355,7 +358,7 @@ async function pickModel(key) {
     if (!r.ok) return null;
     const d = await r.json();
     const ok = (d.models || []).filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"));
-    const pick = ok.find((m) => /flash-latest/.test(m.name))
+    const pick = ok.find((m) => /flash-lite/.test(m.name))
       || ok.find((m) => /flash/.test(m.name) && !/thinking|exp/.test(m.name))
       || ok.find((m) => /flash/.test(m.name)) || ok[0];
     return pick ? pick.name.replace(/^models\//, "") : null;
@@ -378,7 +381,7 @@ async function analyzeWithAI() {
     const base64 = resizedBase64();
     const body = JSON.stringify({
       contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
     });
     const resp = await getAdvice(key, body);
     if (!resp || !resp.ok) {
