@@ -395,8 +395,6 @@ function miniMarkdown(src) {
 // ===== 記録 =====
 function loadRecords() { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch { return []; } }
 function saveRecords(arr) { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); }
-function getManual() { const o = {}; document.querySelectorAll(".manual").forEach((c) => (o[c.dataset.key] = c.checked)); return o; }
-
 els.tagBtns.addEventListener("click", (e) => {
   const b = e.target.closest(".tag-btn"); if (!b) return;
   currentTag = b.dataset.tag;
@@ -417,7 +415,7 @@ els.saveBtn.addEventListener("click", () => {
   if (!latest) { alert("先に顔を撮影/選択してください。"); return; }
   const rec = { ...latest, tag: currentTag, note: els.noteInput.value.trim(),
     thumb: els.savePhoto.checked ? thumbFromStill() : null,
-    advice: els.advice.dataset.raw || "", manual: getManual() };
+    advice: els.advice.dataset.raw || "" };
   const arr = loadRecords(); arr.unshift(rec);
   try { saveRecords(arr); }
   catch { rec.thumb = null; saveRecords(arr); alert("保存容量がいっぱいのため、写真なしで記録しました。"); }
