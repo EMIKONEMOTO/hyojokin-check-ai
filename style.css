@@ -183,6 +183,7 @@ main {
 .advice-body ul, .advice-body ol { margin: 8px 0; padding-left: 22px; }
 .advice-body li { margin: 5px 0; }
 .advice-body .err { color: var(--brand-dark); font-weight: 600; }
+.advice-actions { margin-top: 14px; text-align: center; }
 .advice-note { font-size: .76rem; color: var(--ink-soft); margin: 12px 0 0; }
 .loading { color: var(--ink-soft); }
 .loading .dots::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }

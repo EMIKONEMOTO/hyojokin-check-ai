@@ -21,6 +21,7 @@ const els = {
   photoInput: $("photoInput"),
   analyzeBtn: $("analyzeBtn"), showMesh: $("showMesh"), savePhoto: $("savePhoto"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
+  adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"),
   summaryCard: $("summaryCard"), summary: $("summary"),
   apiKey: $("apiKey"), saveKey: $("saveKey"), keyStatus: $("keyStatus"), settings: $("settings"),
   saveBtn: $("saveBtn"), exportBtn: $("exportBtn"), clearBtn: $("clearBtn"), history: $("history"),
@@ -84,6 +85,7 @@ function resetStill() {
   els.analyzeBtn.disabled = true;
   els.summaryCard.hidden = true;
   els.adviceCard.hidden = true;
+  els.adviceActions.hidden = true;
   els.retake.hidden = true;
 }
 
@@ -286,8 +288,12 @@ ${summaryText(m)}
 次の構成で、あたたかく具体的に、日本語で答えてください。専門用語には短い補足を。長すぎないように。
 1. **いま見えること** — どこがどう引っ張られている/力んでいるか、左右差、口角か頬か、首や顎の緊張の兆候を、写真に即して具体的に(断定しすぎず「〜に見えます」)。
 2. **なぜそうなりやすいか** — 1〜2文で簡単に。
-3. **今日ためしてみて** — すぐできる具体的なセルフケアを1〜3個。どこに手を当てて、どの筋肉を、どう動かす/ゆるめるか、わかる形で。
-最後に一言はげましを。`;
+3. **今日ためしてみて** — すぐその場でできる「動き」を1〜3個、順番がわかる形で。必ず次を“動かし方・置き方”として具体的に含めてください:
+   - **舌の位置**: 舌先を上の前歯の少し後ろ(スポット)に置き、舌全体を上あごへふんわり吸い上げる(軽い陰圧)。どのくらいの力か・どこに当てるかを言葉で。
+   - **奥歯**: 上下の奥歯を1〜2mm離して噛み締めをオフにする。
+   - **オトガイ(下唇・顎先)**: 力をスッと抜く。
+   写真で気になった部分(例:右の口角・首の緊張)に合わせて、手の当て方や目元・頬の動かし方も1つ添える。鼻呼吸や姿勢のひとことも歓迎。
+最後に、はげましの一言とともに「いまの助言どおりに舌の位置や頬の使い方を整えて、もう一度撮って見比べてみましょう」と、やさしく“もう一枚撮って練習する”ことを促してください。`;
 }
 
 // ===== AI分析 =====
@@ -309,6 +315,39 @@ function resizedBase64(maxDim = 1024, quality = 0.85) {
   c.getContext("2d").drawImage(els.still, 0, 0, w, h);
   return c.toDataURL("image/jpeg", quality).split(",")[1];
 }
+// 複数モデルを順に試す（混雑503時は別モデルへ切替、成功したら記憶）
+async function getAdvice(key, body) {
+  const primary = localStorage.getItem(MODEL_STORE) || GEMINI_MODEL;
+  const candidates = [primary, "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+  const tried = new Set();
+  let last = null;
+  for (const model of candidates) {
+    if (!model || tried.has(model)) continue;
+    tried.add(model);
+    for (let t = 0; t < 2; t++) {
+      const resp = await callGemini(key, model, body);
+      last = resp;
+      if (resp.ok) { try { localStorage.setItem(MODEL_STORE, model); } catch {} return resp; }
+      if (resp.status === 404) break;                         // 存在しない→次のモデル
+      if (resp.status === 503 || resp.status === 500) {        // 混雑→少し待って再試行
+        els.advice.innerHTML = `<div class="loading">AIが混み合っています。別のモデルで再試行中…<span class="dots"></span></div>`;
+        await sleep(1200 * (t + 1));
+        continue;
+      }
+      return resp;                                             // 400/403/429等はそのまま返す
+    }
+  }
+  if (last && last.status === 404) {                           // 全滅時は利用可能モデルを自動検出
+    const found = await pickModel(key);
+    if (found && !tried.has(found)) {
+      const r = await callGemini(key, found, body);
+      if (r.ok) { try { localStorage.setItem(MODEL_STORE, found); } catch {} }
+      return r;
+    }
+  }
+  return last;
+}
+
 // 使えるモデルを一覧から自動検出（flash優先）
 async function pickModel(key) {
   try {
@@ -332,6 +371,7 @@ async function analyzeWithAI() {
     els.settings.open = true; return;
   }
   els.adviceCard.hidden = false;
+  els.adviceActions.hidden = true;
   els.advice.innerHTML = `<div class="loading">AIが顔を見ています…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
@@ -340,29 +380,18 @@ async function analyzeWithAI() {
       contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
     });
-    let model = localStorage.getItem(MODEL_STORE) || GEMINI_MODEL;
-    let resp = await callGemini(key, model, body);
-    // モデルが見つからない(404)場合は、使えるモデルを自動検出して再試行
-    if (resp.status === 404) {
-      const found = await pickModel(key);
-      if (found) { try { localStorage.setItem(MODEL_STORE, found); } catch {} model = found; resp = await callGemini(key, model, body); }
-    }
-    // 混雑(503)・一時エラー(500)は自動で数回リトライ
-    for (let t = 0; (resp.status === 503 || resp.status === 500) && t < 3; t++) {
-      els.advice.innerHTML = `<div class="loading">AIが混み合っています。再試行中（${t + 1}/3）…<span class="dots"></span></div>`;
-      await sleep(1500 * (t + 1));
-      resp = await callGemini(key, model, body);
-    }
-    if (!resp.ok) {
-      const err = await resp.text();
-      let msg = `エラー (${resp.status})`;
-      if (resp.status === 400 && /API key|API_KEY/i.test(err)) msg = "APIキーが正しくないようです。設定を確認してください。";
-      else if (resp.status === 429) msg = "回数制限に達しました。少し時間をおいて再度お試しください（Gemini無料枠の上限です）。";
-      else if (resp.status === 403) msg = "このキーではGemini APIが有効になっていないようです。AI Studioでキーを作り直してみてください。";
-      else if (resp.status === 404) msg = "利用できるモデルが見つかりませんでした。少し時間をおくか、キーを作り直してみてください。";
-      else if (resp.status === 503 || resp.status === 500) msg = "AIが混み合っています。少し待ってから、もう一度「AIに分析してもらう」を押してください。";
+    const resp = await getAdvice(key, body);
+    if (!resp || !resp.ok) {
+      const status = resp ? resp.status : 0;
+      const err = resp ? await resp.text().catch(() => "") : "";
+      let msg = `エラー (${status || "通信"})`;
+      if (status === 400 && /API key|API_KEY/i.test(err)) msg = "APIキーが正しくないようです。設定を確認してください。";
+      else if (status === 429) msg = "回数制限に達しました。少し時間をおいて再度お試しください（Gemini無料枠の上限です）。";
+      else if (status === 403) msg = "このキーではGemini APIが有効になっていないようです。AI Studioでキーを作り直してみてください。";
+      else if (status === 404) msg = "利用できるモデルが見つかりませんでした。少し時間をおくか、キーを作り直してみてください。";
+      else if (status === 503 || status === 500) msg = "今どのAIモデルも混み合っているようです。1〜2分おいて、もう一度「AIに分析してもらう」を押してください。";
       els.advice.innerHTML = `<p class="err">${msg}</p>`;
-      console.error("Gemini error", resp.status, err);
+      console.error("Gemini error", status, err);
       return;
     }
     const data = await resp.json();
@@ -370,6 +399,7 @@ async function analyzeWithAI() {
     if (!text) { els.advice.innerHTML = `<p class="err">回答を取得できませんでした。もう一度お試しください。</p>`; return; }
     els.advice.innerHTML = miniMarkdown(text);
     els.advice.dataset.raw = text;
+    els.adviceActions.hidden = false;
   } catch (e) {
     console.error(e);
     const msg = e.name === "AbortError"
@@ -380,6 +410,14 @@ async function analyzeWithAI() {
     els.analyzeBtn.disabled = false;
   }
 }
+
+// アドバイスを受けて、舌・表情を整えてもう一度撮る（練習ループ）
+els.reshootBtn.addEventListener("click", async () => {
+  if (mode !== "camera") switchMode("camera");
+  await startCamera();
+  els.stageMsg && setMsg("");
+  document.querySelector(".stage-wrap")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 els.copyAdvice.addEventListener("click", async () => {
   const t = els.advice.dataset.raw || els.advice.textContent;
