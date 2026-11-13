@@ -90,8 +90,10 @@ main {
 }
 .stage {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
+  height: min(52vh, 440px);
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  margin: 0 auto;
   background: #10131c;
   border-radius: 12px;
   overflow: hidden;
@@ -99,6 +101,7 @@ main {
   align-items: center;
   justify-content: center;
 }
+@media (min-width: 620px) { .stage { aspect-ratio: 4 / 3; } }
 #webcam, #still, #overlay {
   position: absolute;
   inset: 0;

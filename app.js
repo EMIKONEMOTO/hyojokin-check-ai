@@ -73,8 +73,9 @@ function switchMode(next) {
   els.photoGroup.hidden = next !== "photo";
   stopCamera();
   resetStill();
-  if (next === "camera") setMsg("「カメラを開始」を押してください。");
-  else setMsg("「写真を選ぶ」から顔写真をアップしてください。");
+  setCamUI("idle");
+  if (next === "camera") { els.video.hidden = false; setMsg("「📷 カメラを開始」を押してください。"); }
+  else { els.video.hidden = true; setMsg("「写真を選ぶ」から顔写真をアップしてください。"); }
 }
 
 function resetStill() {
@@ -92,9 +93,16 @@ function resetStill() {
 // ===== カメラ =====
 els.startCam.addEventListener("click", startCamera);
 els.shutter.addEventListener("click", takeShot);
-els.retake.addEventListener("click", () => { resetStill(); els.video.hidden = false; els.shutter.hidden = false; });
+els.retake.addEventListener("click", startCamera); // 撮り直す＝ライブに戻す
 els.mirror.addEventListener("change", () => els.video.classList.toggle("mirror", els.mirror.checked));
 els.video.classList.toggle("mirror", els.mirror.checked);
+
+// カメラのボタン表示は常に1つだけ： idle | live | captured
+function setCamUI(state) {
+  els.startCam.hidden = state !== "idle";
+  els.shutter.hidden = state !== "live";
+  els.retake.hidden = state !== "captured";
+}
 
 async function startCamera() {
   try {
@@ -102,10 +110,10 @@ async function startCamera() {
       video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
     els.video.srcObject = stream;
     await els.video.play();
+    resetStill();           // 前の静止画・結果をクリア
     els.video.hidden = false;
-    els.startCam.hidden = true;
-    els.shutter.hidden = false;
     setMsg("");
+    setCamUI("live");
   } catch (e) {
     console.error(e);
     setMsg("カメラを使えませんでした。ブラウザのカメラ許可を確認してください。");
@@ -114,9 +122,6 @@ async function startCamera() {
 function stopCamera() {
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   els.video.srcObject = null;
-  els.video.hidden = mode !== "camera";
-  els.startCam.hidden = false;
-  els.shutter.hidden = true;
 }
 
 function takeShot() {
@@ -130,8 +135,8 @@ function takeShot() {
   const url = c.toDataURL("image/jpeg", 0.85);
   stopCamera();
   els.video.hidden = true;
-  els.shutter.hidden = true;
   showStill(url);
+  setCamUI("captured");
 }
 
 // ===== 写真アップ =====
@@ -149,7 +154,6 @@ function showStill(dataUrl) {
   els.still.onload = () => { setMsg(""); processStill(); };
   els.still.src = dataUrl;
   els.still.hidden = false;
-  els.retake.hidden = mode !== "camera";
 }
 
 function processStill() {
