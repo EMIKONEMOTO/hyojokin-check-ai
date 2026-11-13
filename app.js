@@ -292,10 +292,22 @@ ${summaryText(m)}
 
 // ===== AI分析 =====
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function callGemini(key, model, body) {
+function callGemini(key, model, body, timeoutMs = 45000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: ctrl.signal }
+  ).finally(() => clearTimeout(timer));
+}
+// 送信用に画像を縮小してbase64化（通信を軽く・安く）
+function resizedBase64(maxDim = 1024, quality = 0.85) {
+  const iw = els.still.naturalWidth, ih = els.still.naturalHeight;
+  const scale = Math.min(1, maxDim / Math.max(iw, ih));
+  const w = Math.round(iw * scale), h = Math.round(ih * scale);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d").drawImage(els.still, 0, 0, w, h);
+  return c.toDataURL("image/jpeg", quality).split(",")[1];
 }
 // 使えるモデルを一覧から自動検出（flash優先）
 async function pickModel(key) {
@@ -323,7 +335,7 @@ async function analyzeWithAI() {
   els.advice.innerHTML = `<div class="loading">AIが顔を見ています…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
-    const base64 = currentDataUrl.split(",")[1];
+    const base64 = resizedBase64();
     const body = JSON.stringify({
       contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
@@ -360,7 +372,10 @@ async function analyzeWithAI() {
     els.advice.dataset.raw = text;
   } catch (e) {
     console.error(e);
-    els.advice.innerHTML = `<p class="err">通信に失敗しました。接続を確認して再度お試しください。</p>`;
+    const msg = e.name === "AbortError"
+      ? "時間がかかりすぎました。電波の良い場所で、もう一度「AIに分析してもらう」を押してください。"
+      : "通信に失敗しました。接続を確認して再度お試しください。";
+    els.advice.innerHTML = `<p class="err">${msg}</p>`;
   } finally {
     els.analyzeBtn.disabled = false;
   }
