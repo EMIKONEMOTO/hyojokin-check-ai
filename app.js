@@ -291,6 +291,7 @@ ${summaryText(m)}
 }
 
 // ===== AI分析 =====
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function callGemini(key, model, body) {
   return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
@@ -334,6 +335,12 @@ async function analyzeWithAI() {
       const found = await pickModel(key);
       if (found) { try { localStorage.setItem(MODEL_STORE, found); } catch {} model = found; resp = await callGemini(key, model, body); }
     }
+    // 混雑(503)・一時エラー(500)は自動で数回リトライ
+    for (let t = 0; (resp.status === 503 || resp.status === 500) && t < 3; t++) {
+      els.advice.innerHTML = `<div class="loading">AIが混み合っています。再試行中（${t + 1}/3）…<span class="dots"></span></div>`;
+      await sleep(1500 * (t + 1));
+      resp = await callGemini(key, model, body);
+    }
     if (!resp.ok) {
       const err = await resp.text();
       let msg = `エラー (${resp.status})`;
@@ -341,6 +348,7 @@ async function analyzeWithAI() {
       else if (resp.status === 429) msg = "回数制限に達しました。少し時間をおいて再度お試しください（Gemini無料枠の上限です）。";
       else if (resp.status === 403) msg = "このキーではGemini APIが有効になっていないようです。AI Studioでキーを作り直してみてください。";
       else if (resp.status === 404) msg = "利用できるモデルが見つかりませんでした。少し時間をおくか、キーを作り直してみてください。";
+      else if (resp.status === 503 || resp.status === 500) msg = "AIが混み合っています。少し待ってから、もう一度「AIに分析してもらう」を押してください。";
       els.advice.innerHTML = `<p class="err">${msg}</p>`;
       console.error("Gemini error", resp.status, err);
       return;
