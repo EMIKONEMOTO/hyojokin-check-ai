@@ -222,11 +222,50 @@ main {
 
 .record-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 .record-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* 記録フォーム */
+.save-form {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  background: #fbfbfe; border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 16px;
+}
+.field-label { font-size: .82rem; color: var(--ink-soft); margin-right: 6px; }
+.tag-row { display: flex; align-items: center; }
+.tag-btns { display: inline-flex; gap: 4px; background: #eef0f6; padding: 3px; border-radius: 999px; }
+.tag-btn { border: 0; background: transparent; padding: 5px 16px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .85rem; color: var(--ink-soft); }
+.tag-btn.is-active { background: var(--brand); color: #fff; }
+.note-input { flex: 1; min-width: 180px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: .9rem; font-family: inherit; }
+.save-main { margin-left: auto; }
+
+/* 推移グラフ */
+.trend { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.trend-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.trend-head h3 { margin: 0; font-size: 1rem; }
+.trend-select { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: .85rem; font-family: inherit; background: var(--card); }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; max-width: 100%; }
+.chart-legend { font-size: .78rem; color: var(--ink-soft); margin: 6px 0 0; display: flex; gap: 14px; align-items: center; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.t-asa { background: #f0a93b; } .t-hiru { background: #4a9fe0; } .t-yoru { background: #7a5ad0; }
+
+/* 比較パネル */
+.compare { border: 1px solid var(--brand); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; background: #fdf3f7; }
+.compare h3 { margin: 0 0 10px; font-size: 1rem; }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.compare-col { text-align: center; }
+.compare-col img { width: 100%; max-width: 220px; border-radius: 10px; border: 1px solid var(--line); }
+.compare-col .cap { font-size: .82rem; color: var(--ink-soft); margin-top: 6px; }
+.compare-deltas { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.delta-chip { font-size: .82rem; padding: 4px 10px; border-radius: 999px; background: #fff; border: 1px solid var(--line); }
+.delta-chip b { font-variant-numeric: tabular-nums; }
+.delta-up { color: var(--good); } .delta-down { color: var(--warn); }
+
+.history-hint { font-size: .8rem; color: var(--ink-soft); margin: 4px 0; }
 .history { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .history:empty::after { content: "まだ記録がありません"; color: var(--ink-soft); font-size: .85rem; }
 .hist-item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -234,9 +273,21 @@ main {
   border-radius: 10px;
   font-size: .85rem;
 }
+.hist-item.is-picked { border-color: var(--brand); background: #fdf3f7; }
+.hist-pick { width: 18px; height: 18px; accent-color: var(--brand); }
+.hist-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.hist-thumb.placeholder { background: #eef0f6; display: grid; place-items: center; color: var(--ink-soft); font-size: 1.1rem; }
+.hist-main { display: flex; flex-direction: column; gap: 2px; }
 .hist-date { font-weight: 700; }
+.hist-tag { font-size: .72rem; padding: 1px 8px; border-radius: 999px; color: #fff; margin-left: 6px; }
+.hist-tag.朝 { background: #f0a93b; } .hist-tag.昼 { background: #4a9fe0; } .hist-tag.夜 { background: #7a5ad0; }
+.hist-note { color: var(--ink-soft); font-size: .78rem; }
 .hist-metrics { color: var(--ink-soft); display: flex; gap: 12px; flex-wrap: wrap; }
 .hist-del { border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 1.1rem; }
+
+@media (max-width: 620px) {
+  .save-main { margin-left: 0; width: 100%; }
+}
 
 .site-footer { text-align: center; color: var(--ink-soft); font-size: .78rem; padding: 10px 16px 40px; }
 

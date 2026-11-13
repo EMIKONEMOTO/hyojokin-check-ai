@@ -22,7 +22,17 @@ const els = {
   exportBtn: document.getElementById("exportBtn"),
   clearBtn: document.getElementById("clearBtn"),
   history: document.getElementById("history"),
+  tagBtns: document.getElementById("tagBtns"),
+  noteInput: document.getElementById("noteInput"),
+  savePhoto: document.getElementById("savePhoto"),
+  trend: document.getElementById("trend"),
+  trendMetric: document.getElementById("trendMetric"),
+  chart: document.getElementById("chart"),
+  comparePanel: document.getElementById("comparePanel"),
+  historyHint: document.getElementById("historyHint"),
 };
+let currentTag = "朝";
+let picked = []; // 比較用に選んだ記録の日時(id)
 const ctx = els.canvas.getContext("2d");
 
 // ---------- state ----------
@@ -369,7 +379,7 @@ function loadRecords() {
   catch { return []; }
 }
 function saveRecords(arr) {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); } catch {}
+  localStorage.setItem(STORE_KEY, JSON.stringify(arr));
 }
 function getManual() {
   const o = {};
@@ -377,21 +387,63 @@ function getManual() {
   return o;
 }
 
+// タグ選択
+els.tagBtns.addEventListener("click", (e) => {
+  const btn = e.target.closest(".tag-btn");
+  if (!btn) return;
+  currentTag = btn.dataset.tag;
+  els.tagBtns.querySelectorAll(".tag-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+});
+
+// 現在の映像/写真から小さなサムネイルを取得
+function captureThumb() {
+  try {
+    const src = mode === "camera" ? els.video : els.photo;
+    const sw = mode === "camera" ? src.videoWidth : src.naturalWidth;
+    const sh = mode === "camera" ? src.videoHeight : src.naturalHeight;
+    if (!sw || !sh) return null;
+    const tw = 220, th = Math.round((sh / sw) * tw);
+    const c = document.createElement("canvas");
+    c.width = tw; c.height = th;
+    const cx = c.getContext("2d");
+    if (mode === "camera" && els.mirror.checked) { cx.translate(tw, 0); cx.scale(-1, 1); }
+    cx.drawImage(src, 0, 0, tw, th);
+    return c.toDataURL("image/jpeg", 0.7);
+  } catch { return null; }
+}
+
 els.saveBtn.addEventListener("click", () => {
   if (!latest) { alert("先に顔を映して計測してください。"); return; }
-  const rec = { ...latest, manual: getManual() };
+  const rec = {
+    ...latest,
+    tag: currentTag,
+    note: els.noteInput.value.trim(),
+    thumb: els.savePhoto.checked ? captureThumb() : null,
+    manual: getManual(),
+  };
   const arr = loadRecords();
   arr.unshift(rec);
-  saveRecords(arr);
-  renderHistory();
+  try {
+    saveRecords(arr);
+  } catch {
+    // 容量オーバー時は写真を外して再保存
+    rec.thumb = null;
+    saveRecords(arr);
+    alert("保存容量がいっぱいのため、今回は写真なしで記録しました。");
+  }
+  els.noteInput.value = "";
+  refreshRecordUI();
 });
 
 els.clearBtn.addEventListener("click", () => {
   if (confirm("記録をすべて削除します。よろしいですか？")) {
     saveRecords([]);
-    renderHistory();
+    picked = [];
+    refreshRecordUI();
   }
 });
+
+els.trendMetric.addEventListener("change", renderChart);
 
 els.exportBtn.addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(loadRecords(), null, 2)], { type: "application/json" });
@@ -403,38 +455,145 @@ els.exportBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function smileBalance(r) { return Math.round((r.upScore - r.sideScore) * 100); }
+
+// 記録UI全体を更新（履歴＋グラフ＋比較）
+function refreshRecordUI() {
+  renderHistory();
+  renderChart();
+  renderCompare();
+}
+
 function renderHistory() {
   const arr = loadRecords();
+  els.historyHint.hidden = arr.length < 2;
   els.history.innerHTML = "";
-  arr.forEach((r, idx) => {
-    const d = new Date(r.date);
-    const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  arr.forEach((r) => {
     const item = document.createElement("div");
-    item.className = "hist-item";
+    item.className = "hist-item" + (picked.includes(r.date) ? " is-picked" : "");
+    const thumb = r.thumb
+      ? `<img class="hist-thumb" src="${r.thumb}" alt="" />`
+      : `<span class="hist-thumb placeholder">👤</span>`;
+    const tag = r.tag ? `<span class="hist-tag ${r.tag}">${r.tag}</span>` : "";
+    const note = r.note ? `<span class="hist-note">${escapeHtml(r.note)}</span>` : "";
     item.innerHTML = `
-      <span class="hist-date">${dateStr}</span>
-      <span class="hist-metrics">
-        <span>対称 ${r.sym}</span>
-        <span>目の左右差 ${r.eyeAsym?.toFixed(0) ?? "-"}%</span>
-        <span>口角左右差 ${r.mouthAsym?.toFixed(0) ?? "-"}%</span>
-        <span>笑顔 ↗${(r.upScore * 100).toFixed(0)}/↔${(r.sideScore * 100).toFixed(0)}</span>
+      <input type="checkbox" class="hist-pick" ${picked.includes(r.date) ? "checked" : ""} />
+      ${thumb}
+      <span class="hist-main">
+        <span><span class="hist-date">${fmtDate(r.date)}</span>${tag}</span>
+        ${note}
+        <span class="hist-metrics">
+          <span>対称 ${r.sym}</span>
+          <span>目差 ${r.eyeAsym?.toFixed(0) ?? "-"}%</span>
+          <span>口角差 ${r.mouthAsym?.toFixed(0) ?? "-"}%</span>
+          <span>笑顔 ↗${(r.upScore * 100).toFixed(0)}/↔${(r.sideScore * 100).toFixed(0)}</span>
+        </span>
       </span>
-      <button class="hist-del" data-idx="${idx}" title="削除">✕</button>`;
+      <button class="hist-del" title="削除">✕</button>`;
+    item.querySelector(".hist-pick").addEventListener("change", (e) => togglePick(r.date, e.target.checked));
+    item.querySelector(".hist-del").addEventListener("click", () => {
+      const arr2 = loadRecords().filter((x) => x.date !== r.date);
+      saveRecords(arr2);
+      picked = picked.filter((p) => p !== r.date);
+      refreshRecordUI();
+    });
     els.history.appendChild(item);
   });
-  els.history.querySelectorAll(".hist-del").forEach((b) =>
-    b.addEventListener("click", () => {
-      const arr2 = loadRecords();
-      arr2.splice(Number(b.dataset.idx), 1);
-      saveRecords(arr2);
-      renderHistory();
-    })
-  );
+}
+
+function togglePick(id, on) {
+  if (on) {
+    picked.push(id);
+    if (picked.length > 2) picked.shift(); // 最新2つだけ保持
+  } else {
+    picked = picked.filter((p) => p !== id);
+  }
+  refreshRecordUI();
+}
+
+// 比較パネル
+function renderCompare() {
+  if (picked.length !== 2) { els.comparePanel.hidden = true; return; }
+  const arr = loadRecords();
+  const recs = picked.map((id) => arr.find((r) => r.date === id)).filter(Boolean);
+  if (recs.length !== 2) { els.comparePanel.hidden = true; return; }
+  // 古い→新しい の順に
+  recs.sort((a, b) => new Date(a.date) - new Date(b.date));
+  const [a, b] = recs;
+  const img = (r) => r.thumb ? `<img src="${r.thumb}" alt="" />` : `<div class="hist-thumb placeholder" style="width:100%;height:160px">写真なし</div>`;
+  const deltas = [
+    { label: "対称スコア", a: a.sym, b: b.sym, better: "up" },
+    { label: "目の左右差%", a: a.eyeAsym, b: b.eyeAsym, better: "down" },
+    { label: "口角の左右差%", a: a.mouthAsym, b: b.mouthAsym, better: "down" },
+    { label: "笑顔バランス", a: smileBalance(a), b: smileBalance(b), better: "up" },
+  ].map((d) => {
+    const diff = (d.b - d.a);
+    const good = d.better === "up" ? diff > 0 : diff < 0;
+    const sign = diff > 0 ? "+" : "";
+    const cls = diff === 0 ? "" : good ? "delta-up" : "delta-down";
+    return `<span class="delta-chip">${d.label} <b>${Math.round(d.a)}→${Math.round(d.b)}</b> <span class="${cls}">(${sign}${Math.round(diff)})</span></span>`;
+  }).join("");
+  els.comparePanel.hidden = false;
+  els.comparePanel.innerHTML = `
+    <h3>🔍 比較：${fmtDate(a.date)} → ${fmtDate(b.date)}</h3>
+    <div class="compare-grid">
+      <div class="compare-col">${img(a)}<div class="cap">${fmtDate(a.date)}${a.tag ? " ・" + a.tag : ""}</div></div>
+      <div class="compare-col">${img(b)}<div class="cap">${fmtDate(b.date)}${b.tag ? " ・" + b.tag : ""}</div></div>
+    </div>
+    <div class="compare-deltas">${deltas}</div>`;
+}
+
+// 推移グラフ（依存ライブラリなしのSVG折れ線）
+const TAG_COLOR = { "朝": "#f0a93b", "昼": "#4a9fe0", "夜": "#7a5ad0" };
+function metricValue(r, key) {
+  if (key === "smileBalance") return smileBalance(r);
+  return r[key];
+}
+function renderChart() {
+  const arr = loadRecords().slice().reverse(); // 古い→新しい
+  if (arr.length < 2) { els.trend.hidden = true; return; }
+  els.trend.hidden = false;
+  const key = els.trendMetric.value;
+  const vals = arr.map((r) => metricValue(r, key)).filter((v) => isFinite(v));
+  if (vals.length < 2) { els.trend.hidden = true; return; }
+
+  const W = Math.max(320, arr.length * 46), H = 160, pad = { l: 34, r: 12, t: 12, b: 24 };
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (key === "sym") { min = Math.min(min, 70); max = 100; }
+  else if (key === "eyeAsym" || key === "mouthAsym") { min = 0; max = Math.max(max, 20); }
+  if (min === max) { min -= 1; max += 1; }
+  const x = (i) => pad.l + (i * (W - pad.l - pad.r)) / (arr.length - 1);
+  const y = (v) => pad.t + (1 - (v - min) / (max - min)) * (H - pad.t - pad.b);
+
+  const grid = [0, 0.5, 1].map((f) => {
+    const v = min + (max - min) * (1 - f);
+    const yy = pad.t + f * (H - pad.t - pad.b);
+    return `<line x1="${pad.l}" y1="${yy}" x2="${W - pad.r}" y2="${yy}" stroke="#e6e8f0"/>
+            <text x="2" y="${yy + 3}" font-size="9" fill="#9aa1b2">${Math.round(v)}</text>`;
+  }).join("");
+  const line = arr.map((r, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(metricValue(r, key)).toFixed(1)}`).join(" ");
+  const dots = arr.map((r, i) =>
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(metricValue(r, key)).toFixed(1)}" r="4" fill="${TAG_COLOR[r.tag] || "#e86a92"}"><title>${fmtDate(r.date)}${r.tag ? " " + r.tag : ""}: ${Math.round(metricValue(r, key))}</title></circle>`
+  ).join("");
+  els.chart.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      ${grid}
+      <path d="${line}" fill="none" stroke="#e86a92" stroke-width="2"/>
+      ${dots}
+    </svg>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 els.showMesh.addEventListener("change", () => { if (mode === "photo" && latest) {/* 次検出時反映 */} });
 
 // ---------- 起動 ----------
-renderHistory();
+refreshRecordUI();
 switchMode("camera");
 initLandmarker();

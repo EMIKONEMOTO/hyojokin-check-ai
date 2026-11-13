@@ -125,12 +125,46 @@
       <div class="record-head">
         <h2>📈 記録</h2>
         <div class="record-actions">
-          <button id="saveBtn" class="btn btn-primary">今の状態を記録</button>
           <button id="exportBtn" class="btn">書き出し(JSON)</button>
           <button id="clearBtn" class="btn btn-ghost">全削除</button>
         </div>
       </div>
-      <p class="section-lead">記録はこの端末のブラウザ内だけに保存されます（サーバーには送られません）。</p>
+      <p class="section-lead">記録はこの端末のブラウザ内だけに保存されます（サーバーには送られません）。日々の変化を正しく追うため、<b>なるべく同じ場所・同じ明るさ・同じ距離</b>で撮るのがコツです。</p>
+
+      <!-- 記録フォーム -->
+      <div class="save-form">
+        <div class="tag-row">
+          <span class="field-label">タイミング</span>
+          <div class="tag-btns" id="tagBtns">
+            <button type="button" class="tag-btn is-active" data-tag="朝">朝</button>
+            <button type="button" class="tag-btn" data-tag="昼">昼</button>
+            <button type="button" class="tag-btn" data-tag="夜">夜</button>
+          </div>
+        </div>
+        <input type="text" id="noteInput" class="note-input" placeholder="メモ（例：起きてすぐ / 3-1-2リセット後 など）" maxlength="60" />
+        <label class="toggle"><input type="checkbox" id="savePhoto" checked /><span>顔写真も残す（この端末内のみ）</span></label>
+        <button id="saveBtn" class="btn btn-primary save-main">この瞬間を記録する</button>
+      </div>
+
+      <!-- 推移グラフ -->
+      <div class="trend" id="trend" hidden>
+        <div class="trend-head">
+          <h3>推移グラフ</h3>
+          <select id="trendMetric" class="trend-select">
+            <option value="sym">顔の左右対称スコア（高いほど良い）</option>
+            <option value="eyeAsym">目の左右差%（低いほど良い）</option>
+            <option value="mouthAsym">口角の左右差%（低いほど良い）</option>
+            <option value="smileBalance">笑顔バランス ↗−↔（高いほど良い）</option>
+          </select>
+        </div>
+        <div id="chart" class="chart"></div>
+        <p class="chart-legend"><span class="dot t-asa"></span>朝 <span class="dot t-hiru"></span>昼 <span class="dot t-yoru"></span>夜</p>
+      </div>
+
+      <!-- 比較パネル -->
+      <div class="compare" id="comparePanel" hidden></div>
+
+      <p class="history-hint" id="historyHint" hidden>記録を2つ選ぶと並べて比較できます</p>
       <div id="history" class="history"></div>
     </section>
   </main>
