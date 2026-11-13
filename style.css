@@ -99,14 +99,14 @@ main {
   align-items: center;
   justify-content: center;
 }
-#webcam, #photo, #overlay {
+#webcam, #still, #overlay {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
-#webcam.mirror, #overlay.mirror { transform: scaleX(-1); }
+#webcam.mirror { transform: scaleX(-1); }
 .stage-message {
   position: relative;
   z-index: 3;
@@ -145,7 +145,64 @@ main {
 .hint, .toggle { color: var(--ink-soft); font-size: .85rem; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 
-/* results */
+/* 設定（APIキー） */
+.settings {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 4px 18px; margin-bottom: 14px;
+}
+.settings > summary { cursor: pointer; font-weight: 700; padding: 12px 0; list-style: none; }
+.settings > summary::-webkit-details-marker { display: none; }
+.settings > summary::before { content: "▸ "; color: var(--brand); }
+.settings[open] > summary::before { content: "▾ "; }
+.settings-body { padding: 0 0 14px; }
+.key-steps { margin: 8px 0 12px; padding-left: 20px; font-size: .88rem; color: var(--ink-soft); }
+.key-steps a { color: var(--brand-dark); }
+.key-steps code { background: #eef0f6; padding: 1px 6px; border-radius: 5px; }
+.key-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.key-row .note-input { flex: 1; min-width: 200px; }
+.key-status { font-size: .82rem; color: var(--ink-soft); }
+.key-status.ok { color: var(--good); font-weight: 700; }
+
+/* 分析ボタン */
+.analyze-wrap { text-align: center; margin: 4px 0 18px; }
+.btn-analyze { font-size: 1.05rem; padding: 14px 32px; border-radius: 12px; }
+.btn-analyze:disabled { opacity: .45; cursor: not-allowed; }
+.analyze-opts { display: flex; gap: 18px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+
+/* AIアドバイス */
+.advice-card {
+  background: linear-gradient(180deg, #fff, #fdf6f9);
+  border: 1px solid #f3d3df; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 18px 20px; margin-bottom: 18px;
+}
+.advice-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.advice-head h2 { margin: 0; font-size: 1.12rem; }
+.advice-body { font-size: .96rem; line-height: 1.75; }
+.advice-body h4 { margin: 16px 0 6px; font-size: 1rem; color: var(--brand-dark); }
+.advice-body p { margin: 8px 0; }
+.advice-body ul, .advice-body ol { margin: 8px 0; padding-left: 22px; }
+.advice-body li { margin: 5px 0; }
+.advice-body .err { color: var(--brand-dark); font-weight: 600; }
+.advice-note { font-size: .76rem; color: var(--ink-soft); margin: 12px 0 0; }
+.loading { color: var(--ink-soft); }
+.loading .dots::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
+/* 測定サマリー */
+.summary-card {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 20px; margin-bottom: 18px;
+}
+.summary-card h2 { margin: 0 0 10px; font-size: 1.08rem; }
+.summary-grid { display: flex; flex-direction: column; gap: 8px; }
+.sum-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sum-item:last-child { border-bottom: 0; }
+.sum-k { color: var(--ink-soft); font-size: .9rem; }
+.sum-v { font-weight: 600; font-size: .92rem; text-align: right; }
+.sum-v.good { color: var(--good); }
+.sum-v.warn { color: var(--warn); }
+
+/* results (旧・未使用) */
 .results {
   display: grid;
   grid-template-columns: 1fr 1fr;

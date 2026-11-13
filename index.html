@@ -3,36 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>表情筋チェックAI</title>
-  <meta name="description" content="ブラウザだけで完結する、表情筋セルフチェックAI。写真や動画をどこにも送らず、目の開き・左右差・笑顔のタイプを数値で見える化します。" />
+  <title>表情筋AIコーチ</title>
+  <meta name="description" content="顔写真をAIが見て、どこの筋肉がどう引っ張っているか・左右差・今日やってみることを言葉でアドバイス。表情筋のセルフケアを客観測定とAIで。" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="site-header">
-    <h1>表情筋チェック<span class="ai">AI</span></h1>
-    <p class="tagline">目の開き・左右差・笑顔のタイプを、その場で見える化</p>
-    <p class="privacy-badge">🔒 画像はどこにも送信されません。すべてあなたのブラウザの中だけで処理します。</p>
+    <h1>表情筋<span class="ai">AIコーチ</span></h1>
+    <p class="tagline">顔を撮ると、どこがどう引っ張っているか・こうしてみて、をAIが言葉で</p>
   </header>
 
   <main>
+    <!-- APIキー設定 -->
+    <details class="settings" id="settings">
+      <summary>⚙️ AIの設定（最初に1回）</summary>
+      <div class="settings-body">
+        <p class="section-lead">AIアドバイスにはGeminiのAPIキーが必要です（無料で取得可）。キーは<b>この端末のブラウザ内だけ</b>に保存され、分析のたびにあなたのキーで直接Geminiに送られます。</p>
+        <ol class="key-steps">
+          <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> を開く → 「APIキーを作成」</li>
+          <li>作られたキー（<code>AIza…</code>）をコピー</li>
+          <li>下に貼り付けて「保存」</li>
+        </ol>
+        <div class="key-row">
+          <input type="password" id="apiKey" class="note-input" placeholder="Gemini APIキーを貼り付け（AIza…）" autocomplete="off" />
+          <button id="saveKey" class="btn btn-primary">保存</button>
+          <span id="keyStatus" class="key-status"></span>
+        </div>
+      </div>
+    </details>
+
     <!-- 入力モード切り替え -->
     <nav class="mode-tabs" aria-label="入力モード">
-      <button class="mode-tab is-active" data-mode="camera">📷 カメラ</button>
-      <button class="mode-tab" data-mode="photo">🖼️ 写真をアップ</button>
+      <button class="mode-tab is-active" data-mode="camera">📷 その場で撮影</button>
+      <button class="mode-tab" data-mode="photo">🖼️ 写真を選ぶ</button>
     </nav>
 
     <section class="stage-wrap">
       <div class="stage">
         <video id="webcam" autoplay playsinline muted></video>
-        <img id="photo" alt="" hidden />
-        <canvas id="overlay"></canvas>
+        <img id="still" alt="" hidden />
+        <canvas id="overlay" hidden></canvas>
         <div id="stage-message" class="stage-message">読み込み中…</div>
       </div>
 
       <div class="controls">
         <div class="control-group" data-for="camera">
           <button id="startCam" class="btn btn-primary">カメラを開始</button>
-          <button id="stopCam" class="btn" hidden>停止</button>
+          <button id="shutter" class="btn btn-primary" hidden>📸 撮影する</button>
+          <button id="retake" class="btn" hidden>撮り直す</button>
           <label class="toggle">
             <input type="checkbox" id="mirror" checked />
             <span>左右反転（鏡表示）</span>
@@ -43,75 +61,40 @@
             写真を選ぶ
             <input type="file" id="photoInput" accept="image/*" hidden />
           </label>
-          <span class="hint">正面・水平に撮った顔写真が最適です</span>
+          <span class="hint">正面・水平の顔写真が最適。笑わなくてOK</span>
         </div>
-        <label class="toggle">
-          <input type="checkbox" id="showMesh" />
-          <span>顔メッシュを表示</span>
-        </label>
       </div>
     </section>
 
-    <!-- 計測結果 -->
-    <section class="results" id="results" aria-live="polite">
-      <div class="metric-card" data-metric="eye">
-        <div class="metric-head">
-          <h3>👁 目の開き</h3>
-          <span class="verdict" id="eye-verdict">—</span>
-        </div>
-        <div class="lr-bars">
-          <div class="lr-row"><span class="lr-label">左</span><div class="bar"><div class="bar-fill" id="eyeL-bar"></div></div><span class="lr-val" id="eyeL-val">—</span></div>
-          <div class="lr-row"><span class="lr-label">右</span><div class="bar"><div class="bar-fill" id="eyeR-bar"></div></div><span class="lr-val" id="eyeR-val">—</span></div>
-        </div>
-        <p class="metric-note">左右差 <b id="eye-asym">—</b>（小さいほど左右対称）</p>
+    <!-- AI分析アクション -->
+    <section class="analyze-wrap">
+      <button id="analyzeBtn" class="btn btn-primary btn-analyze" disabled>🤖 AIに分析してもらう</button>
+      <div class="analyze-opts">
+        <label class="toggle"><input type="checkbox" id="showMesh" /><span>測定ポイントを表示</span></label>
+        <label class="toggle"><input type="checkbox" id="savePhoto" checked /><span>記録に写真を残す</span></label>
       </div>
+    </section>
 
-      <div class="metric-card" data-metric="mouth">
-        <div class="metric-head">
-          <h3>🙂 口角の高さ</h3>
-          <span class="verdict" id="mouth-verdict">—</span>
-        </div>
-        <div class="lr-bars">
-          <div class="lr-row"><span class="lr-label">左</span><div class="bar"><div class="bar-fill" id="mouthL-bar"></div></div><span class="lr-val" id="mouthL-val">—</span></div>
-          <div class="lr-row"><span class="lr-label">右</span><div class="bar"><div class="bar-fill" id="mouthR-bar"></div></div><span class="lr-val" id="mouthR-val">—</span></div>
-        </div>
-        <p class="metric-note">左右差 <b id="mouth-asym">—</b></p>
+    <!-- AIアドバイス -->
+    <section class="advice-card" id="adviceCard" hidden>
+      <div class="advice-head">
+        <h2>🤖 AIからのアドバイス</h2>
+        <button id="copyAdvice" class="btn btn-ghost">コピー</button>
       </div>
+      <div id="advice" class="advice-body"></div>
+      <p class="advice-note">※ セルフケアの参考です。医療的な診断ではありません。</p>
+    </section>
 
-      <div class="metric-card" data-metric="symmetry">
-        <div class="metric-head">
-          <h3>⚖️ 顔の左右対称</h3>
-          <span class="verdict big" id="sym-verdict">—</span>
-        </div>
-        <div class="score-ring" id="sym-ring"><span id="sym-score">—</span></div>
-        <p class="metric-note">100に近いほど左右対称</p>
-      </div>
-
-      <div class="metric-card wide" data-metric="smile">
-        <div class="metric-head">
-          <h3>😄 笑顔のタイプ</h3>
-          <span class="verdict" id="smile-verdict">—</span>
-        </div>
-        <p class="metric-note top-note">「横に引く笑顔（笑筋・代償）」より「斜め上に上げる笑顔（大頬骨筋・インナー主導）」が理想</p>
-        <div class="smile-bars">
-          <div class="smile-row">
-            <span class="smile-label">↗️ 頬を斜め上に上げる度<br><small>大頬骨筋・目元 ＝ 理想</small></span>
-            <div class="bar good"><div class="bar-fill" id="cheek-bar"></div></div>
-            <span class="lr-val" id="cheek-val">—</span>
-          </div>
-          <div class="smile-row">
-            <span class="smile-label">↔️ 横に引く度<br><small>笑筋・広頚筋 ＝ 減らしたい癖</small></span>
-            <div class="bar warn"><div class="bar-fill" id="stretch-bar"></div></div>
-            <span class="lr-val" id="stretch-val">—</span>
-          </div>
-        </div>
-      </div>
+    <!-- 客観測定サマリー -->
+    <section class="summary-card" id="summaryCard" hidden>
+      <h2>📏 客観測定（アプリが自動計測）</h2>
+      <div id="summary" class="summary-grid"></div>
+      <p class="section-lead">※ 首の縦スジ・口角横の溝・筋肉の使い方は、写真を見てAIが判断します（下のアドバイス参照）。</p>
     </section>
 
     <!-- 自動では測れない項目の目視チェック -->
     <section class="manual-check">
-      <h2>👀 目視チェック（AIでは測りにくい項目）</h2>
-      <p class="section-lead">首の縦スジ・口角横の深い溝は、影や質感の変化なので点では測れません。鏡や写真を見て、自分でチェックして記録しましょう。</p>
+      <h2>👀 目視チェック（自分で確認）</h2>
       <ul class="check-list">
         <li><label><input type="checkbox" class="manual" data-key="neckLine" /> 首に縦スジが浮き出ていない</label></li>
         <li><label><input type="checkbox" class="manual" data-key="mouthGroove" /> 口角横の深い溝が出ていない</label></li>
@@ -129,9 +112,8 @@
           <button id="clearBtn" class="btn btn-ghost">全削除</button>
         </div>
       </div>
-      <p class="section-lead">記録はこの端末のブラウザ内だけに保存されます（サーバーには送られません）。日々の変化を正しく追うため、<b>なるべく同じ場所・同じ明るさ・同じ距離</b>で撮るのがコツです。</p>
+      <p class="section-lead">記録はこの端末のブラウザ内だけに保存されます。日々の変化を正しく追うため、<b>なるべく同じ場所・同じ明るさ・同じ距離</b>で撮るのがコツです。</p>
 
-      <!-- 記録フォーム -->
       <div class="save-form">
         <div class="tag-row">
           <span class="field-label">タイミング</span>
@@ -142,11 +124,9 @@
           </div>
         </div>
         <input type="text" id="noteInput" class="note-input" placeholder="メモ（例：起きてすぐ / 3-1-2リセット後 など）" maxlength="60" />
-        <label class="toggle"><input type="checkbox" id="savePhoto" checked /><span>顔写真も残す（この端末内のみ）</span></label>
         <button id="saveBtn" class="btn btn-primary save-main">この瞬間を記録する</button>
       </div>
 
-      <!-- 推移グラフ -->
       <div class="trend" id="trend" hidden>
         <div class="trend-head">
           <h3>推移グラフ</h3>
@@ -154,23 +134,20 @@
             <option value="sym">顔の左右対称スコア（高いほど良い）</option>
             <option value="eyeAsym">目の左右差%（低いほど良い）</option>
             <option value="mouthAsym">口角の左右差%（低いほど良い）</option>
-            <option value="smileBalance">笑顔バランス ↗−↔（高いほど良い）</option>
           </select>
         </div>
         <div id="chart" class="chart"></div>
         <p class="chart-legend"><span class="dot t-asa"></span>朝 <span class="dot t-hiru"></span>昼 <span class="dot t-yoru"></span>夜</p>
       </div>
 
-      <!-- 比較パネル -->
       <div class="compare" id="comparePanel" hidden></div>
-
       <p class="history-hint" id="historyHint" hidden>記録を2つ選ぶと並べて比較できます</p>
       <div id="history" class="history"></div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <p>表情筋チェックAI — すべての処理はブラウザ内（MediaPipe Face Landmarker）。医療行為ではありません。</p>
+    <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
   <script type="module" src="app.js"></script>
