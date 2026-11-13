@@ -5,7 +5,8 @@ import {
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
 
 // ===== 設定 =====
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-flash-latest"; // 既定モデル（404時は自動で使えるものに切替）
+const MODEL_STORE = "hyojokin-gemini-model";
 const KEY_STORE = "hyojokin-gemini-key";
 const STORE_KEY = "hyojokin-records-v1";
 
@@ -290,6 +291,25 @@ ${summaryText(m)}
 }
 
 // ===== AI分析 =====
+function callGemini(key, model, body) {
+  return fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body });
+}
+// 使えるモデルを一覧から自動検出（flash優先）
+async function pickModel(key) {
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const ok = (d.models || []).filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"));
+    const pick = ok.find((m) => /flash-latest/.test(m.name))
+      || ok.find((m) => /flash/.test(m.name) && !/thinking|exp/.test(m.name))
+      || ok.find((m) => /flash/.test(m.name)) || ok[0];
+    return pick ? pick.name.replace(/^models\//, "") : null;
+  } catch { return null; }
+}
+
 els.analyzeBtn.addEventListener("click", analyzeWithAI);
 async function analyzeWithAI() {
   if (!latest || !currentDataUrl) { alert("先に顔を撮影/選択してください。"); return; }
@@ -303,20 +323,26 @@ async function analyzeWithAI() {
   els.analyzeBtn.disabled = true;
   try {
     const base64 = currentDataUrl.split(",")[1];
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
-      { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
-        }) });
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
+    });
+    let model = localStorage.getItem(MODEL_STORE) || GEMINI_MODEL;
+    let resp = await callGemini(key, model, body);
+    // モデルが見つからない(404)場合は、使えるモデルを自動検出して再試行
+    if (resp.status === 404) {
+      const found = await pickModel(key);
+      if (found) { try { localStorage.setItem(MODEL_STORE, found); } catch {} model = found; resp = await callGemini(key, model, body); }
+    }
     if (!resp.ok) {
       const err = await resp.text();
       let msg = `エラー (${resp.status})`;
-      if (resp.status === 400 && /API key/i.test(err)) msg = "APIキーが正しくないようです。設定を確認してください。";
-      else if (resp.status === 429) msg = "回数制限に達しました。少し時間をおいて再度お試しください。";
+      if (resp.status === 400 && /API key|API_KEY/i.test(err)) msg = "APIキーが正しくないようです。設定を確認してください。";
+      else if (resp.status === 429) msg = "回数制限に達しました。少し時間をおいて再度お試しください（Gemini無料枠の上限です）。";
+      else if (resp.status === 403) msg = "このキーではGemini APIが有効になっていないようです。AI Studioでキーを作り直してみてください。";
+      else if (resp.status === 404) msg = "利用できるモデルが見つかりませんでした。少し時間をおくか、キーを作り直してみてください。";
       els.advice.innerHTML = `<p class="err">${msg}</p>`;
-      console.error(err);
+      console.error("Gemini error", resp.status, err);
       return;
     }
     const data = await resp.json();
