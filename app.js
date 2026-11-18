@@ -37,7 +37,8 @@ let latest = null;            // 直近の測定結果
 let currentDataUrl = null;    // 分析対象の静止画(JPEG dataURL)
 let currentLandmarks = null;  // 直近のランドマーク
 let currentTag = "朝", picked = [];
-let prevMetrics = null;       // 前回分析した測定値（続き感・比較用）
+let sessionLog = [];          // この練習セッションの各回 {sym,eyeAsym,mouthAsym,tension,neck,neutral}
+let prevAdvice = "";          // 前回AIが伝えた本文（繰り返し防止用）
 let lastScores = null;        // 直近AIの使い方スコア {tension,neck,neutral}
 
 function setMsg(t) {
@@ -312,25 +313,33 @@ ${summaryText(m)}
 重要: 「3-1-2」という語句や数字の並び(3-1-2 / 3,1,2 等)は、名称・見出し・本文のどこにも絶対に出力しないこと。${SCORE_LINE}`;
 }
 
-// 2回目以降（撮り直し）用：前回と比べて“続き・進歩”のトーンで
-function buildFollowupPrompt(prev, now) {
-  return `あなたは表情筋・顔のバランスのセルフケアを支える、やさしく具体的なコーチです。医師ではなく診断はしません。
+// 2回目以降（撮り直し）用：これまでの流れをふまえ、毎回ちがう切り口で深掘りするコーチ
+function buildFollowupPrompt(log, now, prevAdvice) {
+  const journey = log.map((s, i) =>
+    `${i + 1}回目: 対称${s.sym}・目の差${Math.round(s.eyeAsym)}%・口角差${Math.round(s.mouthAsym)}%` +
+    (isFinite(s.tension) ? `・力み${s.tension}/首${s.neck}/ニュートラル${s.neutral}` : "")
+  ).join("\n");
+  const n = log.length + 1;
+  return `あなたは、顔・顎・舌・首の連動に精通したベテランのセルフケア指導者です(鍼灸・解剖学の視点も持つ)。医師ではなく診断はしません。前提の考え方:
+- 顎関節・奥歯・舌と、首の深層筋(胸鎖乳突筋・斜角筋・肩甲挙筋・後頭下筋群)は一つのユニットとして連動する。
+- 舌(インナー)の支えが弱いと下顎が不安定になり、奥歯や耳周り・首で踏ん張って支えてしまう。舌が上あごに吸着して土台ができると、噛みしめや首の力みが抜けやすい。
+- 理想の笑顔は、口角を横に引く(笑筋・広頚筋)のではなく、頬のトップ(大頬骨筋)を斜め上に上げ、目元がゆるむ。
+- 力みが抜けると、頭蓋底や目の奥の締め付けがゆるみ、目の開き・左右差・フェイスラインが整う。
 
-これは同じ人の【練習の続きの一枚】です。さっきのアドバイスを受けて、舌の位置や頬の使い方を整えて撮り直しました。前回と今回を見比べて、変化を一緒に喜び、次の一歩だけを示してください。初対面のような全体説明は繰り返さないこと。
+これは同じ人が【練習しながら何度も撮り直している、${n}回目の一枚】です。毎回ちがう気づきを与え、飽きさせず、少しずつ深めてください。
 
-アプリの客観測定値:
-【前回】
-${summaryText(prev)}
-【今回】
+この練習セッションのこれまでの流れ:
+${journey}
+今回の測定値:
 ${summaryText(now)}
-
-トーン: 落ち着いて正直に。ほめ言葉は大げさにせず、多くても1回まで。お世辞っぽくしない。短め。
-次の構成で、“続き”の温度で、日本語で答えてください。
-1. **さっきからの変化** — 変わった点を1つ、さらっと事実として伝える(例:「対称スコアが${prev.sym}→${now.sym}」「口元の力みが少しやわらいで見えます」)。ほぼ同じなら「整った状態をキープできています」と一言だけ。
-2. **いま見えること** — 今の状態を1文だけ簡潔に。
-3. **次の一歩** — いちばん意識すると良い点を【1つだけ】、具体的な動き(舌・奥歯・オトガイ・頬のどれか)としてやさしく。
-最後に「この調子で、整えたらまた撮って見比べてみましょう」と一言で促してください(大げさな称賛は不要)。
-重要: 「3-1-2」という語句や数字の並びは、どこにも絶対に出力しないこと。${SCORE_LINE}`;
+${prevAdvice ? `\n前回あなたが伝えた内容(今回はこれと同じ助言・同じ言い回しを繰り返さないこと):\n「${prevAdvice.slice(0, 350)}」\n` : ""}
+守ること:
+- 短めに、あたたかく、でも毎回“新鮮”に。お世辞や大げさな称賛はしない。
+- 冒頭1文: これまでの流れをふまえた変化の見立て(数値も少し使う。ほぼ同じなら「この良い状態を体に覚えさせる段階」と捉える)。
+- 本題: 【今回はひとつの切り口だけ】を選んで深掘りする。切り口は回ごとに必ず変えること。候補例: 舌の吸着の精度／奥歯のゆるめ方／オトガイ(下唇・顎先)／頬を斜め上に上げる感覚／首・肩・後頭部の脱力／鼻呼吸／目線と姿勢／会話や噛みしめの無意識の癖／"今の整った感覚"の覚え方・再現のコツ。前回と違う切り口を選ぶ。
+- その切り口について「なぜ効くのか」の仕組みを一文そえて、学びになるように。具体的な動き・手の当て方など、その場でできる形で。
+- 最後に、次に意識するとよい一点を一言。
+番号(1. 2.)は付けず、必要なら短い太字の小見出しで。「3-1-2」という語句や数字の並びは出さない。${SCORE_LINE}`;
 }
 
 // ===== AI分析 =====
@@ -410,14 +419,14 @@ async function analyzeWithAI() {
     alert("先に「⚙️ AIの設定」でGeminiのAPIキーを保存してください。");
     els.settings.open = true; return;
   }
-  const isFollowup = !!prevMetrics;
+  const isFollowup = sessionLog.length > 0;
   els.adviceCard.hidden = false;
   els.adviceActions.hidden = true;
-  els.advice.innerHTML = `<div class="loading">${isFollowup ? "前回と見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
+  els.advice.innerHTML = `<div class="loading">${isFollowup ? "これまでの流れと見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
     const base64 = resizedBase64();
-    const prompt = isFollowup ? buildFollowupPrompt(prevMetrics, latest) : buildPrompt(latest);
+    const prompt = isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice) : buildPrompt(latest);
     const body = JSON.stringify({
       contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
@@ -447,7 +456,10 @@ async function analyzeWithAI() {
     els.advice.dataset.raw = clean;
     renderScores(lastScores);
     els.adviceActions.hidden = false;
-    prevMetrics = { ...latest };   // 次回はこれと比べて“続き”で話す
+    // この回を練習セッションの履歴に積む（次回はこれまでの流れをふまえて話す）
+    sessionLog.push({ sym: latest.sym, eyeAsym: latest.eyeAsym, mouthAsym: latest.mouthAsym, ...(lastScores || {}) });
+    if (sessionLog.length > 8) sessionLog.shift();
+    prevAdvice = clean;
   } catch (e) {
     console.error(e);
     const msg = e.name === "AbortError"
