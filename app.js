@@ -21,7 +21,7 @@ const els = {
   photoInput: $("photoInput"),
   analyzeBtn: $("analyzeBtn"), showMesh: $("showMesh"), savePhoto: $("savePhoto"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
-  adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"),
+  adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"), aiScores: $("aiScores"),
   summaryCard: $("summaryCard"), summary: $("summary"),
   apiKey: $("apiKey"), saveKey: $("saveKey"), keyStatus: $("keyStatus"), settings: $("settings"),
   saveBtn: $("saveBtn"), clearBtn: $("clearBtn"), history: $("history"),
@@ -38,6 +38,7 @@ let currentDataUrl = null;    // 分析対象の静止画(JPEG dataURL)
 let currentLandmarks = null;  // 直近のランドマーク
 let currentTag = "朝", picked = [];
 let prevMetrics = null;       // 前回分析した測定値（続き感・比較用）
+let lastScores = null;        // 直近AIの使い方スコア {tension,neck,neutral}
 
 function setMsg(t) {
   if (!t) els.stageMsg.classList.add("hidden");
@@ -88,6 +89,8 @@ function resetStill() {
   els.summaryCard.hidden = true;
   els.adviceCard.hidden = true;
   els.adviceActions.hidden = true;
+  els.aiScores.hidden = true; els.aiScores.innerHTML = "";
+  lastScores = null;
   els.retake.hidden = true;
 }
 
@@ -260,6 +263,13 @@ function summaryText(m) {
   ].join("\n");
 }
 
+// AIに毎回つけてもらう集計用スコア行（画面には出さず、記録・グラフ用に解析）
+const SCORE_LINE = `
+
+最後に、画面には表示しない集計用の行を必ず1行だけ、次の形式そのままで付けてください（前後に文章や記号を付けない）:
+@@SCORES tension=[0-10の整数] neck=[0-10の整数] neutral=[0-10の整数]
+意味: tension=口元・顎まわりの力み(0=完全に脱力, 10=強く力む／低いほど良い)、neck=首・フェイスラインの緊張(0=ゆるむ, 10=強い緊張／低いほど良い)、neutral=脱力ニュートラルのできている度合い(0=できていない, 10=理想的／高いほど良い)。写真から素直に評価してください。`;
+
 // ===== APIキー =====
 function getKey() { try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; } }
 function reflectKey() {
@@ -299,7 +309,7 @@ ${summaryText(m)}
    - **オトガイ(下唇・顎先)**: 力をスッと抜く。
    写真で気になった部分(例:右の口角・首の緊張)に合わせて、手の当て方や目元・頬の動かし方も1つ添える。鼻呼吸や姿勢のひとことも歓迎。
 最後に、はげましの一言とともに「いまの助言どおりに舌の位置や頬の使い方を整えて、もう一度撮って見比べてみましょう」と、やさしく“もう一枚撮って練習する”ことを促してください。
-重要: 「3-1-2」という語句や数字の並び(3-1-2 / 3,1,2 等)は、名称・見出し・本文のどこにも絶対に出力しないこと。`;
+重要: 「3-1-2」という語句や数字の並び(3-1-2 / 3,1,2 等)は、名称・見出し・本文のどこにも絶対に出力しないこと。${SCORE_LINE}`;
 }
 
 // 2回目以降（撮り直し）用：前回と比べて“続き・進歩”のトーンで
@@ -320,7 +330,7 @@ ${summaryText(now)}
 2. **いま見えること** — 今の状態を1文だけ簡潔に。
 3. **次の一歩** — いちばん意識すると良い点を【1つだけ】、具体的な動き(舌・奥歯・オトガイ・頬のどれか)としてやさしく。
 最後に「この調子で、整えたらまた撮って見比べてみましょう」と一言で促してください(大げさな称賛は不要)。
-重要: 「3-1-2」という語句や数字の並びは、どこにも絶対に出力しないこと。`;
+重要: 「3-1-2」という語句や数字の並びは、どこにも絶対に出力しないこと。${SCORE_LINE}`;
 }
 
 // ===== AI分析 =====
@@ -429,8 +439,13 @@ async function analyzeWithAI() {
     const data = await resp.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
     if (!text) { els.advice.innerHTML = `<p class="err">回答を取得できませんでした。もう一度お試しください。</p>`; return; }
-    els.advice.innerHTML = miniMarkdown(text);
-    els.advice.dataset.raw = text;
+    // 集計用スコア行を抽出して本文からは取り除く
+    const sm = text.match(/@@SCORES\s+tension=(\d+)\s+neck=(\d+)\s+neutral=(\d+)/i);
+    lastScores = sm ? { tension: +sm[1], neck: +sm[2], neutral: +sm[3] } : null;
+    const clean = text.replace(/\n*@@SCORES[^\n]*/i, "").trim();
+    els.advice.innerHTML = miniMarkdown(clean);
+    els.advice.dataset.raw = clean;
+    renderScores(lastScores);
     els.adviceActions.hidden = false;
     prevMetrics = { ...latest };   // 次回はこれと比べて“続き”で話す
   } catch (e) {
@@ -456,6 +471,22 @@ els.copyAdvice.addEventListener("click", async () => {
   const t = els.advice.dataset.raw || els.advice.textContent;
   try { await navigator.clipboard.writeText(t); els.copyAdvice.textContent = "コピーしました"; setTimeout(() => (els.copyAdvice.textContent = "コピー"), 1500); } catch {}
 });
+
+// AIの使い方スコアをチップ表示
+function renderScores(s) {
+  if (!s) { els.aiScores.hidden = true; els.aiScores.innerHTML = ""; return; }
+  const chip = (label, val, lowerBetter) => {
+    const good = lowerBetter ? val <= 3 : val >= 7;
+    const warn = lowerBetter ? val >= 7 : val <= 3;
+    const cls = good ? "good" : warn ? "warn" : "";
+    return `<span class="score-chip ${cls}"><span class="score-k">${label}</span> <b>${val}</b><small>/10</small></span>`;
+  };
+  els.aiScores.innerHTML = `<span class="scores-title">AI評価</span>`
+    + chip("口元の力み", s.tension, true)
+    + chip("首の緊張", s.neck, true)
+    + chip("ニュートラル", s.neutral, false);
+  els.aiScores.hidden = false;
+}
 
 // ごく簡易なMarkdown→HTML
 function miniMarkdown(src) {
@@ -499,7 +530,7 @@ function thumbFromStill() {
 
 els.saveBtn.addEventListener("click", () => {
   if (!latest) { alert("先に顔を撮影/選択してください。"); return; }
-  const rec = { ...latest, tag: currentTag, note: els.noteInput.value.trim(),
+  const rec = { ...latest, ...(lastScores || {}), tag: currentTag, note: els.noteInput.value.trim(),
     thumb: els.savePhoto.checked ? thumbFromStill() : null,
     advice: els.advice.dataset.raw || "" };
   const arr = loadRecords(); arr.unshift(rec);
@@ -535,7 +566,7 @@ function renderHistory() {
         <span><span class="hist-date">${fmtDate(r.date)}</span>${tag}</span>
         ${note}
         <span class="hist-metrics">
-          <span>対称 ${r.sym}</span><span>目差 ${r.eyeAsym?.toFixed(0) ?? "-"}%</span><span>口角差 ${r.mouthAsym?.toFixed(0) ?? "-"}%</span>
+          ${isFinite(r.tension) ? `<span>力み ${r.tension}</span>` : ""}${isFinite(r.neutral) ? `<span>ニュートラル ${r.neutral}</span>` : ""}<span>対称 ${r.sym}</span>
         </span>
       </span>
       <button class="hist-del" title="削除">✕</button>`;
@@ -559,7 +590,11 @@ function renderCompare() {
   recs.sort((a, b) => new Date(a.date) - new Date(b.date));
   const [a, b] = recs;
   const img = (r) => r.thumb ? `<img src="${r.thumb}" alt="" />` : `<div class="hist-thumb placeholder" style="width:100%;height:160px">写真なし</div>`;
+  const both = (k) => isFinite(a[k]) && isFinite(b[k]);
   const deltas = [
+    ...(both("tension") ? [{ label: "口元の力み", a: a.tension, b: b.tension, better: "down" }] : []),
+    ...(both("neck") ? [{ label: "首の緊張", a: a.neck, b: b.neck, better: "down" }] : []),
+    ...(both("neutral") ? [{ label: "ニュートラル", a: a.neutral, b: b.neutral, better: "up" }] : []),
     { label: "対称スコア", a: a.sym, b: b.sym, better: "up" },
     { label: "目の左右差%", a: a.eyeAsym, b: b.eyeAsym, better: "down" },
     { label: "口角の左右差%", a: a.mouthAsym, b: b.mouthAsym, better: "down" },
@@ -588,6 +623,7 @@ function renderChart() {
   const W = Math.max(320, arr.length * 46), H = 160, pad = { l: 34, r: 12, t: 12, b: 24 };
   let min = Math.min(...vals), max = Math.max(...vals);
   if (key === "sym") { min = Math.min(min, 70); max = 100; }
+  else if (key === "tension" || key === "neck" || key === "neutral") { min = 0; max = 10; }
   else { min = 0; max = Math.max(max, 20); }
   if (min === max) { min -= 1; max += 1; }
   const x = (i) => pad.l + (i * (W - pad.l - pad.r)) / (arr.length - 1);

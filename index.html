@@ -82,6 +82,7 @@
         <button id="copyAdvice" class="btn btn-ghost">コピー</button>
       </div>
       <div id="advice" class="advice-body"></div>
+      <div id="aiScores" class="ai-scores" hidden></div>
       <div class="advice-actions" id="adviceActions" hidden>
         <button id="reshootBtn" class="btn btn-primary">👄 舌・表情を整えて、もう一度撮る</button>
       </div>
@@ -114,7 +115,7 @@
             <button type="button" class="tag-btn" data-tag="夜">夜</button>
           </div>
         </div>
-        <input type="text" id="noteInput" class="note-input" placeholder="メモ（例：起きてすぐ / 3-1-2リセット後 など）" maxlength="60" />
+        <input type="text" id="noteInput" class="note-input" placeholder="メモ（例：起きてすぐ / 練習後 など）" maxlength="60" />
         <button id="saveBtn" class="btn btn-primary save-main">この瞬間を記録する</button>
       </div>
 
@@ -122,6 +123,9 @@
         <div class="trend-head">
           <h3>推移グラフ</h3>
           <select id="trendMetric" class="trend-select">
+            <option value="tension">口元・顎の力み（低いほど良い）</option>
+            <option value="neck">首まわりの緊張（低いほど良い）</option>
+            <option value="neutral">脱力・ニュートラル度（高いほど良い）</option>
             <option value="sym">顔の左右対称スコア（高いほど良い）</option>
             <option value="eyeAsym">目の左右差%（低いほど良い）</option>
             <option value="mouthAsym">口角の左右差%（低いほど良い）</option>
@@ -141,6 +145,6 @@
     <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
-  <script type="module" src="app.js?v=20261118c"></script>
+  <script type="module" src="app.js?v=20261118d"></script>
 </body>
 </html>

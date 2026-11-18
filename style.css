@@ -186,6 +186,17 @@ main {
 .advice-body ul, .advice-body ol { margin: 8px 0; padding-left: 22px; }
 .advice-body li { margin: 5px 0; }
 .advice-body .err { color: var(--brand-dark); font-weight: 600; }
+.ai-scores { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #f0d0dc; }
+.scores-title { font-size: .78rem; font-weight: 700; color: var(--ink-soft); margin-right: 2px; }
+.score-chip { display: inline-flex; align-items: baseline; gap: 2px; font-size: .82rem; padding: 4px 11px; border-radius: 999px; background: #fff; border: 1px solid var(--line); }
+.score-chip .score-k { color: var(--ink-soft); }
+.score-chip b { font-variant-numeric: tabular-nums; font-size: 1rem; }
+.score-chip small { color: var(--ink-soft); }
+.score-chip.good { background: #eafaf4; border-color: #c9efe1; }
+.score-chip.good b { color: var(--good); }
+.score-chip.warn { background: #fdf4e0; border-color: #f3e2bd; }
+.score-chip.warn b { color: var(--warn); }
+
 .advice-actions { margin-top: 14px; text-align: center; }
 .advice-note { font-size: .76rem; color: var(--ink-soft); margin: 12px 0 0; }
 .loading { color: var(--ink-soft); }
