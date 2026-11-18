@@ -34,8 +34,9 @@
 
     <!-- 入力モード切り替え -->
     <nav class="mode-tabs" aria-label="入力モード">
-      <button class="mode-tab is-active" data-mode="camera">📷 その場で撮影</button>
-      <button class="mode-tab" data-mode="photo">🖼️ 写真を選ぶ</button>
+      <button class="mode-tab is-active" data-mode="camera">📷 撮影</button>
+      <button class="mode-tab" data-mode="photo">🖼️ 写真</button>
+      <button class="mode-tab" data-mode="video">🎥 話す動画</button>
     </nav>
 
     <section class="stage-wrap">
@@ -43,6 +44,7 @@
         <video id="webcam" autoplay playsinline muted></video>
         <img id="still" alt="" hidden />
         <canvas id="overlay" hidden></canvas>
+        <video id="clip" muted playsinline hidden></video>
         <div id="stage-message" class="stage-message">読み込み中…</div>
       </div>
 
@@ -62,6 +64,13 @@
             <input type="file" id="photoInput" accept="image/*" hidden />
           </label>
           <span class="hint">正面・水平の顔写真が最適。笑わなくてOK</span>
+        </div>
+        <div class="control-group" data-for="video" hidden>
+          <label class="btn btn-primary file-btn">
+            動画を選ぶ
+            <input type="file" id="videoInput" accept="video/*" hidden />
+          </label>
+          <span class="hint">普段話している5〜15秒ほどの動画を。正面・顔が映る明るさで</span>
         </div>
       </div>
     </section>
@@ -145,6 +154,6 @@
     <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
-  <script type="module" src="app.js?v=20261118f"></script>
+  <script type="module" src="app.js?v=20261118g"></script>
 </body>
 </html>

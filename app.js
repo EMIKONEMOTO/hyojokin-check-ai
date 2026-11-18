@@ -18,7 +18,8 @@ const els = {
   startCam: $("startCam"), shutter: $("shutter"), retake: $("retake"), mirror: $("mirror"),
   camGroup: document.querySelector('.control-group[data-for="camera"]'),
   photoGroup: document.querySelector('.control-group[data-for="photo"]'),
-  photoInput: $("photoInput"),
+  videoGroup: document.querySelector('.control-group[data-for="video"]'),
+  photoInput: $("photoInput"), videoInput: $("videoInput"), clip: $("clip"),
   analyzeBtn: $("analyzeBtn"), showMesh: $("showMesh"), savePhoto: $("savePhoto"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
   adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"), aiScores: $("aiScores"),
@@ -40,6 +41,7 @@ let currentTag = "朝", picked = [];
 let sessionLog = [];          // この練習セッションの各回 {sym,eyeAsym,mouthAsym,tension,neck,neutral}
 let prevAdvice = "";          // 前回AIが伝えた本文（繰り返し防止用）
 let lastScores = null;        // 直近AIの使い方スコア {tension,neck,neutral}
+let videoFrames = [];         // 動画から切り出したコマ(JPEG dataURL配列)
 
 function setMsg(t) {
   if (!t) els.stageMsg.classList.add("hidden");
@@ -74,15 +76,17 @@ function switchMode(next) {
   els.modeTabs.forEach((t) => t.classList.toggle("is-active", t.dataset.mode === next));
   els.camGroup.hidden = next !== "camera";
   els.photoGroup.hidden = next !== "photo";
+  els.videoGroup.hidden = next !== "video";
   stopCamera();
   resetStill();
   setCamUI("idle");
   if (next === "camera") { els.video.hidden = false; setMsg("「📷 カメラを開始」を押してください。"); }
+  else if (next === "video") { els.video.hidden = true; setMsg("「動画を選ぶ」から、普段話している動画をアップしてください。"); }
   else { els.video.hidden = true; setMsg("「写真を選ぶ」から顔写真をアップしてください。"); }
 }
 
 function resetStill() {
-  currentDataUrl = null; currentLandmarks = null; latest = null;
+  currentDataUrl = null; currentLandmarks = null; latest = null; videoFrames = [];
   els.still.hidden = true; els.still.src = "";
   els.canvas.hidden = true;
   clearCanvas();
@@ -153,6 +157,61 @@ els.photoInput.addEventListener("change", (e) => {
   reader.readAsDataURL(file);
 });
 
+// ===== 話す動画アップ → コマを切り出す =====
+els.videoInput.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  extractFrames(file);
+});
+
+async function extractFrames(file) {
+  resetStill();
+  setMsg("動画からコマを切り出しています…");
+  const url = URL.createObjectURL(file);
+  const v = els.clip;
+  v.src = url; v.muted = true;
+  try {
+    await new Promise((res, rej) => {
+      v.onloadedmetadata = res;
+      v.onerror = () => rej(new Error("load"));
+    });
+    const dur = v.duration && isFinite(v.duration) ? v.duration : 0;
+    // 最初と最後を少し避けて、話している中盤から等間隔に5コマ
+    const n = 5;
+    const start = dur ? dur * 0.12 : 0, end = dur ? dur * 0.88 : 0;
+    const times = dur ? Array.from({ length: n }, (_, i) => start + (end - start) * (i / (n - 1))) : [0];
+    const vw = v.videoWidth || 640, vh = v.videoHeight || 480;
+    const scale = Math.min(1, 720 / Math.max(vw, vh));
+    const cw = Math.round(vw * scale), ch = Math.round(vh * scale);
+    const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+    const cx = c.getContext("2d");
+    const frames = [];
+    for (const t of times) {
+      await seekTo(v, t);
+      cx.drawImage(v, 0, 0, cw, ch);
+      frames.push(c.toDataURL("image/jpeg", 0.8));
+    }
+    URL.revokeObjectURL(url);
+    videoFrames = frames;
+    // 代表コマ（中央）を測定・表示に使う
+    const mid = frames[Math.floor(frames.length / 2)] || frames[0];
+    setMsg("");
+    showStill(mid);
+  } catch (err) {
+    console.error(err);
+    URL.revokeObjectURL(url);
+    setMsg("この動画を読み込めませんでした。別の形式（mp4など）や短いクリップでお試しください。");
+  }
+}
+
+function seekTo(v, t) {
+  return new Promise((res) => {
+    const done = () => { v.removeEventListener("seeked", done); res(); };
+    v.addEventListener("seeked", done);
+    try { v.currentTime = Math.min(t, (v.duration || t)); } catch { res(); }
+  });
+}
+
 // ===== 静止画を表示→測定 =====
 function showStill(dataUrl) {
   currentDataUrl = dataUrl;
@@ -167,8 +226,9 @@ function processStill() {
   const res = faceLandmarker.detect(els.still);
   clearCanvas();
   if (!res.faceLandmarks?.length) {
-    setMsg("顔を検出できませんでした。正面の写真でお試しください。");
-    latest = null; els.analyzeBtn.disabled = true; els.summaryCard.hidden = true;
+    latest = null; els.summaryCard.hidden = true;
+    if (videoFrames.length) { els.analyzeBtn.disabled = false; setMsg(""); }  // 動画はコマ全体でAIが分析できる
+    else { setMsg("顔を検出できませんでした。正面の写真でお試しください。"); els.analyzeBtn.disabled = true; }
     return;
   }
   const lm = res.faceLandmarks[0];
@@ -338,8 +398,27 @@ ${prevAdvice ? `\n前回あなたが伝えた内容(今回はこれと同じ助�
 - 冒頭1文: これまでの流れをふまえた変化の見立て(数値も少し使う。ほぼ同じなら「この良い状態を体に覚えさせる段階」と捉える)。
 - 本題: 【今回はひとつの切り口だけ】を選んで深掘りする。切り口は回ごとに必ず変えること。候補例: 舌の吸着の精度／奥歯のゆるめ方／オトガイ(下唇・顎先)／頬を斜め上に上げる感覚／首・肩・後頭部の脱力／鼻呼吸／目線と姿勢／会話や噛みしめの無意識の癖／"今の整った感覚"の覚え方・再現のコツ。前回と違う切り口を選ぶ。
 - その切り口について「なぜ効くのか」の仕組みを一文そえて、学びになるように。具体的な動き・手の当て方など、その場でできる形で。
-- 最後に、次に意識するとよい一点を一言。
+- 最後に、次に意識するとよい一点を一言。${n >= 3 ? "（今回は、静止画だけでなく『普段 話している様子』を動画で撮って見てみることも、さりげなく勧めてよい。会話時の顎や首の使い方は動画でこそ分かるため）" : ""}
 番号(1. 2.)は付けず、必要なら短い太字の小見出しで。「3-1-2」という語句や数字の並びは出さない。${SCORE_LINE}`;
+}
+
+// 話す動画（連続コマ）用プロンプト
+function buildVideoPrompt() {
+  return `あなたは、顔・顎・舌・首の連動に精通したベテランのセルフケア指導者です(鍼灸・解剖学の視点も持つ)。医師ではなく診断はしません。
+
+以下の複数枚は、ある人が【普段 話している様子】を動画から時系列に切り出した連続コマです。1枚ずつではなく"話している最中の動き"として見てください。会話で下顎を大きく動かすと咀嚼筋から首(広頚筋など)まで引っ張られやすい、という観点が大切です。
+
+次の観点で観察してください:
+- 話すときに口角を横へ引く癖(笑筋・広頚筋)が出ていないか、左右で引っ張られ方に差はないか。
+- 下顎の動きが大きすぎないか(舌と唇の小さな動きで話せると負担が減る)。
+- 首の縦スジ・顎下・フェイスラインに緊張が出ていないか。
+- 目元や頬のこわばり。
+
+次の構成で、あたたかく具体的に、短めに答えてください(お世辞は控えめ、番号は付けず必要なら太字の小見出し、「3-1-2」という語句は出さない):
+- **話しているときの様子** — コマ全体から読み取れる、話す瞬間の顔・顎・首の使い方の特徴(左右差や癖を具体的に、断定しすぎず)。
+- **なぜそうなりやすいか** — 1〜2文で仕組みを。
+- **会話のときに試してみて** — 下顎を大きく動かさず、舌先と唇の軽い動きで話す等、その場で意識できる具体策を1〜2個。舌の支えや奥歯のゆるめ方にも触れてよい。
+最後に「意識しながら少し話して、また撮ってみましょう」とやさしく促してください。${SCORE_LINE}`;
 }
 
 // ===== AI分析 =====
@@ -413,23 +492,29 @@ async function pickModel(key) {
 
 els.analyzeBtn.addEventListener("click", analyzeWithAI);
 async function analyzeWithAI() {
-  if (!latest || !currentDataUrl) { alert("先に顔を撮影/選択してください。"); return; }
+  if (videoFrames.length === 0 && (!latest || !currentDataUrl)) { alert("先に顔を撮影/選択してください。"); return; }
   const key = getKey();
   if (!key) {
     alert("先に「⚙️ AIの設定」でGeminiのAPIキーを保存してください。");
     els.settings.open = true; return;
   }
-  const isFollowup = sessionLog.length > 0;
+  const isVideo = videoFrames.length > 0;
+  const isFollowup = !isVideo && sessionLog.length > 0;
   els.adviceCard.hidden = false;
   els.adviceActions.hidden = true;
-  els.advice.innerHTML = `<div class="loading">${isFollowup ? "これまでの流れと見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
+  els.advice.innerHTML = `<div class="loading">${isVideo ? "話している様子を分析しています" : isFollowup ? "これまでの流れと見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
-    const base64 = resizedBase64();
-    const prompt = isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice) : buildPrompt(latest);
+    const prompt = isVideo ? buildVideoPrompt() : isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice) : buildPrompt(latest);
+    const parts = [{ text: prompt }];
+    if (isVideo) {
+      for (const f of videoFrames) parts.push({ inline_data: { mime_type: "image/jpeg", data: f.split(",")[1] } });
+    } else {
+      parts.push({ inline_data: { mime_type: "image/jpeg", data: resizedBase64() } });
+    }
     const body = JSON.stringify({
-      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
     });
     const resp = await getAdvice(key, body);
     if (!resp || !resp.ok) {
@@ -456,10 +541,12 @@ async function analyzeWithAI() {
     els.advice.dataset.raw = clean;
     renderScores(lastScores);
     els.adviceActions.hidden = false;
-    // この回を練習セッションの履歴に積む（次回はこれまでの流れをふまえて話す）
-    sessionLog.push({ sym: latest.sym, eyeAsym: latest.eyeAsym, mouthAsym: latest.mouthAsym, ...(lastScores || {}) });
-    if (sessionLog.length > 8) sessionLog.shift();
-    prevAdvice = clean;
+    // 静止画の練習は、この回をセッション履歴に積む（次回はこれまでの流れをふまえて話す）
+    if (!isVideo && latest) {
+      sessionLog.push({ sym: latest.sym, eyeAsym: latest.eyeAsym, mouthAsym: latest.mouthAsym, ...(lastScores || {}) });
+      if (sessionLog.length > 8) sessionLog.shift();
+      prevAdvice = clean;
+    }
   } catch (e) {
     console.error(e);
     const msg = e.name === "AbortError"
