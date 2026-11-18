@@ -21,7 +21,7 @@ const els = {
   videoGroup: document.querySelector('.control-group[data-for="video"]'),
   photoInput: $("photoInput"), videoInput: $("videoInput"), clip: $("clip"),
   analyzeBtn: $("analyzeBtn"), showMesh: $("showMesh"), savePhoto: $("savePhoto"),
-  conditionMode: $("conditionMode"), conditionNote: $("conditionNote"),
+  conditionNote: $("conditionNote"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
   adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"), aiScores: $("aiScores"),
   summaryCard: $("summaryCard"), summary: $("summary"),
@@ -305,7 +305,7 @@ function drawMesh(lm) {
 function renderSummary(m) {
   const eyeDir = m.eyeAsym < 6 ? "ほぼ左右対称" : (m.eyeRight < m.eyeLeft ? "右目がやや小さめ" : "左目がやや小さめ");
   const mouthDir = m.mouthAsym < 8 ? "ほぼ左右対称" : (m.mouthRight < m.mouthLeft ? "右の口角がやや下がり" : "左の口角がやや下がり");
-  const cond = els.conditionMode.checked;  // 医療配慮モードでは左右差を“警告”で出さない
+  const cond = els.conditionNote.value.trim() !== "";  // 医療配慮モードでは左右差を“警告”で出さない
   const items = [
     ["顔の左右対称", `${m.sym} / 100`, cond ? "" : m.sym >= 90 ? "good" : m.sym >= 80 ? "" : "warn"],
     ["目の開き", `左右差 ${m.eyeAsym.toFixed(0)}%・${eyeDir}`, cond ? "" : m.eyeAsym < 10 ? "good" : m.eyeAsym < 20 ? "" : "warn"],
@@ -513,13 +513,6 @@ async function pickModel(key) {
   } catch { return null; }
 }
 
-// 医療的配慮モードのトグル：メモ欄と注意書きの表示
-els.conditionMode.addEventListener("change", () => {
-  const on = els.conditionMode.checked;
-  els.conditionNote.hidden = !on;
-  document.querySelector(".condition-hint").hidden = !on;
-});
-
 els.analyzeBtn.addEventListener("click", analyzeWithAI);
 async function analyzeWithAI() {
   if (videoFrames.length === 0 && (!latest || !currentDataUrl)) { alert("先に顔を撮影/選択してください。"); return; }
@@ -535,8 +528,9 @@ async function analyzeWithAI() {
   els.advice.innerHTML = `<div class="loading">${isVideo ? "話している様子を分析しています" : isFollowup ? "これまでの流れと見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
-    const prompt = els.conditionMode.checked
-      ? buildConditionPrompt(els.conditionNote.value.trim(), { isVideo, log: sessionLog, prevAdvice })
+    const condition = els.conditionNote.value.trim();
+    const prompt = condition
+      ? buildConditionPrompt(condition, { isVideo, log: sessionLog, prevAdvice })
       : isVideo ? buildVideoPrompt()
       : isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice)
       : buildPrompt(latest);

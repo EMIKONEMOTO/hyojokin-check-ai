@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>表情筋AIコーチ</title>
   <meta name="description" content="顔写真をAIが見て、どこの筋肉がどう引っ張っているか・左右差・今日やってみることを言葉でアドバイス。表情筋のセルフケアを客観測定とAIで。" />
-  <link rel="stylesheet" href="style.css?v=20261118j" />
+  <link rel="stylesheet" href="style.css?v=20261118k" />
 </head>
 <body>
   <header class="site-header">
@@ -78,9 +78,9 @@
     <!-- AI分析アクション -->
     <section class="analyze-wrap">
       <div class="condition-bar">
-        <label class="toggle"><input type="checkbox" id="conditionMode" /><span>🩺 医療的な左右差に配慮する（麻痺・斜視など）</span></label>
-        <input type="text" id="conditionNote" class="note-input" placeholder="例：右の顔面神経麻痺（任意・端末内のみ）" maxlength="40" hidden />
-        <p class="condition-hint" hidden>※ 「直す」助言ではなく、凝り・力みをゆるめるケア中心に切り替わります。治療は主治医・リハビリと一緒に。</p>
+        <label class="condition-label" for="conditionNote">🩺 医療的な状態・診断がある方へ（任意）</label>
+        <input type="text" id="conditionNote" class="note-input" placeholder="例：右の顔面神経麻痺 / 斜視 など（端末内のみ）" maxlength="40" />
+        <p class="condition-hint">ご記入いただくと、その状態に配慮し、「直す」助言ではなく“ラクにするケア”中心に切り替わります。治療は主治医・リハビリと一緒に。</p>
       </div>
       <button id="analyzeBtn" class="btn btn-primary btn-analyze" disabled>🤖 AIに分析してもらう</button>
       <div class="analyze-opts">
@@ -159,6 +159,6 @@
     <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
-  <script type="module" src="app.js?v=20261118j"></script>
+  <script type="module" src="app.js?v=20261118k"></script>
 </body>
 </html>
