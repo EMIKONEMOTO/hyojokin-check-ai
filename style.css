@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* hidden属性を常に有効に（display指定での上書きを防ぐ） */
 
 body {
   margin: 0;
@@ -165,6 +166,12 @@ main {
 .key-row .note-input { flex: 1; min-width: 200px; }
 .key-status { font-size: .82rem; color: var(--ink-soft); }
 .key-status.ok { color: var(--good); font-weight: 700; }
+
+/* 医療的配慮モード */
+.condition-bar { max-width: 560px; margin: 0 auto 12px; background: #f1f6fb; border: 1px solid #d8e6f2; border-radius: 12px; padding: 10px 14px; text-align: left; }
+.condition-bar .toggle { font-size: .9rem; color: var(--ink); }
+.condition-bar .note-input { width: 100%; margin-top: 8px; }
+.condition-hint { font-size: .78rem; color: #4a6b86; margin: 8px 0 0; }
 
 /* 分析ボタン */
 .analyze-wrap { text-align: center; margin: 4px 0 18px; }

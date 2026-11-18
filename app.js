@@ -21,6 +21,7 @@ const els = {
   videoGroup: document.querySelector('.control-group[data-for="video"]'),
   photoInput: $("photoInput"), videoInput: $("videoInput"), clip: $("clip"),
   analyzeBtn: $("analyzeBtn"), showMesh: $("showMesh"), savePhoto: $("savePhoto"),
+  conditionMode: $("conditionMode"), conditionNote: $("conditionNote"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
   adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"), aiScores: $("aiScores"),
   summaryCard: $("summaryCard"), summary: $("summary"),
@@ -304,10 +305,11 @@ function drawMesh(lm) {
 function renderSummary(m) {
   const eyeDir = m.eyeAsym < 6 ? "ほぼ左右対称" : (m.eyeRight < m.eyeLeft ? "右目がやや小さめ" : "左目がやや小さめ");
   const mouthDir = m.mouthAsym < 8 ? "ほぼ左右対称" : (m.mouthRight < m.mouthLeft ? "右の口角がやや下がり" : "左の口角がやや下がり");
+  const cond = els.conditionMode.checked;  // 医療配慮モードでは左右差を“警告”で出さない
   const items = [
-    ["顔の左右対称", `${m.sym} / 100`, m.sym >= 90 ? "good" : m.sym >= 80 ? "" : "warn"],
-    ["目の開き", `左右差 ${m.eyeAsym.toFixed(0)}%・${eyeDir}`, m.eyeAsym < 10 ? "good" : m.eyeAsym < 20 ? "" : "warn"],
-    ["口角の高さ", `左右差 ${m.mouthAsym.toFixed(0)}%・${mouthDir}`, m.mouthAsym < 12 ? "good" : m.mouthAsym < 25 ? "" : "warn"],
+    ["顔の左右対称", `${m.sym} / 100`, cond ? "" : m.sym >= 90 ? "good" : m.sym >= 80 ? "" : "warn"],
+    ["目の開き", `左右差 ${m.eyeAsym.toFixed(0)}%・${eyeDir}`, cond ? "" : m.eyeAsym < 10 ? "good" : m.eyeAsym < 20 ? "" : "warn"],
+    ["口角の高さ", `左右差 ${m.mouthAsym.toFixed(0)}%・${mouthDir}`, cond ? "" : m.mouthAsym < 12 ? "good" : m.mouthAsym < 25 ? "" : "warn"],
   ];
   els.summary.innerHTML = items.map(([k, v, c]) =>
     `<div class="sum-item"><span class="sum-k">${k}</span><span class="sum-v ${c}">${v}</span></div>`).join("");
@@ -402,6 +404,27 @@ ${prevAdvice ? `\n前回あなたが伝えた内容(今回はこれと同じ助�
 番号(1. 2.)は付けず、必要なら短い太字の小見出しで。「3-1-2」という語句や数字の並びは出さない。${SCORE_LINE}`;
 }
 
+// 医療的な左右差（麻痺・斜視など）に配慮したプロンプト
+function buildConditionPrompt(note, { isVideo, log, prevAdvice }) {
+  const cond = note ? `この方には医療的な状態があります:「${note}」。` : `この方の顔の左右差には、医療的な要因(神経の麻痺・斜視など)が背景にある可能性があります。`;
+  return `あなたは、顔・顎・首のケアに詳しい、やさしく丁寧なセルフケアの伴走者です。医師ではなく、診断や治療はしません。
+
+${cond}
+【厳守する前提】
+- 顔の左右差を「本人の悪い癖」「サボり」のように扱わない。決して責めない。
+- 麻痺している側の筋肉を「もっと動かして」と無理に促さない(動かせないことがある)。左右差を「矯正して直す」という言い方をしない。
+- その代わり、本人が“ラクにできること”に焦点を当てる: 首・肩・あご・こめかみ・健側(よく動く側)の【使いすぎ・凝り・こわばり・力み】をゆるめる、血流をうながす、やさしいケア(温める・そっとさする・脱力・ゆっくりした鼻呼吸)。これはあなた(鍼灸等)の得意分野として前向きに。
+- 症状そのものの回復・治療は、必ず「担当の先生の治療やリハビリと一緒に」「指導のもとで」と添える。
+- あたたかく、希望を奪わず、できていることも拾う。短めに。
+
+${isVideo ? "以下は普段 話している様子を動画から切り出した連続コマです。会話時の緊張や使いすぎに注目。" : "この顔写真を見てください。"}
+${log && log.length ? "これまでの経過(対称スコア): " + log.map((s, i) => `${i + 1}回目 ${s.sym}`).join(" / ") + "\n" : ""}${prevAdvice ? "前回の内容(同じことは繰り返さない):「" + prevAdvice.slice(0, 220) + "」\n" : ""}
+次の構成で、日本語でやさしく答えてください(番号は付けない、「3-1-2」という語句は出さない):
+- **いま気になるところ** — 緊張・凝り・こわばりが出ていそうな所(首・肩・あご・こめかみ・健側の使いすぎなど)を、責めずにそっと。左右差には「医療的な要因が背景にあるかもしれません」とやわらかく触れてよい。
+- **ラクにするケア** — その場でできる“ゆるめる系”を1〜2個(どこを・どうやさしく)。温め／さすり／脱力／呼吸など。無理に動かす指示はしない。
+- ひとこと — 「担当の先生の治療やリハビリと一緒に、できる範囲で」と、あたたかく。${SCORE_LINE}`;
+}
+
 // 話す動画（連続コマ）用プロンプト
 function buildVideoPrompt() {
   return `あなたは、顔・顎・舌・首の連動に精通したベテランのセルフケア指導者です(鍼灸・解剖学の視点も持つ)。医師ではなく診断はしません。
@@ -490,6 +513,13 @@ async function pickModel(key) {
   } catch { return null; }
 }
 
+// 医療的配慮モードのトグル：メモ欄と注意書きの表示
+els.conditionMode.addEventListener("change", () => {
+  const on = els.conditionMode.checked;
+  els.conditionNote.hidden = !on;
+  document.querySelector(".condition-hint").hidden = !on;
+});
+
 els.analyzeBtn.addEventListener("click", analyzeWithAI);
 async function analyzeWithAI() {
   if (videoFrames.length === 0 && (!latest || !currentDataUrl)) { alert("先に顔を撮影/選択してください。"); return; }
@@ -505,7 +535,11 @@ async function analyzeWithAI() {
   els.advice.innerHTML = `<div class="loading">${isVideo ? "話している様子を分析しています" : isFollowup ? "これまでの流れと見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
-    const prompt = isVideo ? buildVideoPrompt() : isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice) : buildPrompt(latest);
+    const prompt = els.conditionMode.checked
+      ? buildConditionPrompt(els.conditionNote.value.trim(), { isVideo, log: sessionLog, prevAdvice })
+      : isVideo ? buildVideoPrompt()
+      : isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice)
+      : buildPrompt(latest);
     const parts = [{ text: prompt }];
     if (isVideo) {
       for (const f of videoFrames) parts.push({ inline_data: { mime_type: "image/jpeg", data: f.split(",")[1] } });
