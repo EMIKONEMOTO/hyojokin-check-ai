@@ -609,7 +609,7 @@ function renderScores(s) {
     return `<span class="score-chip ${cls}"><span class="score-k">${label}</span> <b>${val}</b><small>/10</small> <span class="score-word">${word}</span></span>`;
   };
   els.aiScores.innerHTML = `<span class="scores-title">AI評価（高いほど良い）</span>`
-    + chip("口元のゆるみ", 10 - s.tension)
+    + chip("口元の脱力", 10 - s.tension)
     + chip("首のラクさ", 10 - s.neck)
     + chip("ニュートラル", s.neutral);
   els.aiScores.hidden = false;
@@ -694,7 +694,7 @@ function renderHistory() {
         <span><span class="hist-date">${fmtDate(r.date)}</span>${tag}</span>
         ${note}
         <span class="hist-metrics">
-          ${isFinite(r.tension) ? `<span>ゆるみ ${10 - r.tension}</span>` : ""}${isFinite(r.neutral) ? `<span>ニュートラル ${r.neutral}</span>` : ""}<span>対称 ${r.sym}</span>
+          ${isFinite(r.tension) ? `<span>脱力 ${10 - r.tension}</span>` : ""}${isFinite(r.neutral) ? `<span>ニュートラル ${r.neutral}</span>` : ""}<span>対称 ${r.sym}</span>
         </span>
       </span>
       <button class="hist-del" title="削除">✕</button>`;
@@ -720,7 +720,7 @@ function renderCompare() {
   const img = (r) => r.thumb ? `<img src="${r.thumb}" alt="" />` : `<div class="hist-thumb placeholder" style="width:100%;height:160px">写真なし</div>`;
   const both = (k) => isFinite(a[k]) && isFinite(b[k]);
   const deltas = [
-    ...(both("tension") ? [{ label: "口元のゆるみ", a: 10 - a.tension, b: 10 - b.tension, better: "up" }] : []),
+    ...(both("tension") ? [{ label: "口元の脱力", a: 10 - a.tension, b: 10 - b.tension, better: "up" }] : []),
     ...(both("neck") ? [{ label: "首のラクさ", a: 10 - a.neck, b: 10 - b.neck, better: "up" }] : []),
     ...(both("neutral") ? [{ label: "ニュートラル", a: a.neutral, b: b.neutral, better: "up" }] : []),
     { label: "対称スコア", a: a.sym, b: b.sym, better: "up" },
