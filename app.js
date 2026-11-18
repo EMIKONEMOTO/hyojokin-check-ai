@@ -303,7 +303,7 @@ ${summaryText(m)}
 次の構成で、あたたかく具体的に、日本語で答えてください。専門用語には短い補足を。長すぎないように。トーンは落ち着いて正直に——ほめ言葉は大げさにせず控えめに(多くても1〜2回)、お世辞っぽくしない。
 1. **いま見えること** — どこがどう引っ張られている/力んでいるか、左右差、口角か頬か、首や顎の緊張の兆候を、写真に即して具体的に(断定しすぎず「〜に見えます」)。
 2. **なぜそうなりやすいか** — 1〜2文で簡単に。
-3. **今日ためしてみて** — 「まず、順番にやってみましょう」のようにやさしく導入し(「3-1-2」等の名称や番号は出さない)、すぐその場でできる「動き」を1〜3個、1→2→3の手順で。必ず次を“動かし方・置き方”として具体的に含めてください:
+3. **今日ためしてみて** — 「まず、順番にやってみましょう」のようにやさしく導入し(「3-1-2」等の名称や番号は出さない)、すぐその場でできる「動き」を上から順に。各手順は先頭に番号(1. 2. 等)を付けず、「**舌のポジションを整える**」のような太字の小見出し＋短い説明の形で並べてください。必ず次を“動かし方・置き方”として具体的に含めてください:
    - **舌の位置**: 舌先を上の前歯の少し後ろ(スポット)に置き、舌全体を上あごへふんわり吸い上げる(軽い陰圧)。どのくらいの力か・どこに当てるかを言葉で。
    - **奥歯**: 上下の奥歯を1〜2mm離して噛み締めをオフにする。
    - **オトガイ(下唇・顎先)**: 力をスッと抜く。
@@ -492,14 +492,15 @@ function renderScores(s) {
 function miniMarkdown(src) {
   const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const lines = esc(src).split("\n");
-  let html = "", inUl = false, inOl = false;
+  let html = "", inUl = false, inOl = false, olNum = 0;
   const closeLists = () => { if (inUl) { html += "</ul>"; inUl = false; } if (inOl) { html += "</ol>"; inOl = false; } };
   for (let line of lines) {
     line = line.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-    if (/^#{1,4}\s+/.test(line)) { closeLists(); html += `<h4>${line.replace(/^#{1,4}\s+/, "")}</h4>`; continue; }
+    if (/^#{1,4}\s+/.test(line)) { closeLists(); olNum = 0; html += `<h4>${line.replace(/^#{1,4}\s+/, "")}</h4>`; continue; }
     const ol = line.match(/^\s*\d+\.\s+(.*)/);
     const ul = line.match(/^\s*(?:[-*]\s+|[・•]\s*)(.*)/);
-    if (ol) { if (!inOl) { closeLists(); html += "<ol>"; inOl = true; } html += `<li>${ol[1]}</li>`; continue; }
+    // 段落で区切られても連番を継続（値を明示）。見出しでのみリセット
+    if (ol) { if (!inOl) { closeLists(); html += `<ol>`; inOl = true; } html += `<li value="${++olNum}">${ol[1]}</li>`; continue; }
     if (ul) { if (!inUl) { closeLists(); html += "<ul>"; inUl = true; } html += `<li>${ul[1]}</li>`; continue; }
     closeLists();
     if (line.trim() === "") continue;
