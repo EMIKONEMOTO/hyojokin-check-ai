@@ -37,6 +37,7 @@ let latest = null;            // 直近の測定結果
 let currentDataUrl = null;    // 分析対象の静止画(JPEG dataURL)
 let currentLandmarks = null;  // 直近のランドマーク
 let currentTag = "朝", picked = [];
+let prevMetrics = null;       // 前回分析した測定値（続き感・比較用）
 
 function setMsg(t) {
   if (!t) els.stageMsg.classList.add("hidden");
@@ -297,7 +298,28 @@ ${summaryText(m)}
    - **奥歯**: 上下の奥歯を1〜2mm離して噛み締めをオフにする。
    - **オトガイ(下唇・顎先)**: 力をスッと抜く。
    写真で気になった部分(例:右の口角・首の緊張)に合わせて、手の当て方や目元・頬の動かし方も1つ添える。鼻呼吸や姿勢のひとことも歓迎。
-最後に、はげましの一言とともに「いまの助言どおりに舌の位置や頬の使い方を整えて、もう一度撮って見比べてみましょう」と、やさしく“もう一枚撮って練習する”ことを促してください。`;
+最後に、はげましの一言とともに「いまの助言どおりに舌の位置や頬の使い方を整えて、もう一度撮って見比べてみましょう」と、やさしく“もう一枚撮って練習する”ことを促してください。
+重要: 「3-1-2」という語句や数字の並び(3-1-2 / 3,1,2 等)は、名称・見出し・本文のどこにも絶対に出力しないこと。`;
+}
+
+// 2回目以降（撮り直し）用：前回と比べて“続き・進歩”のトーンで
+function buildFollowupPrompt(prev, now) {
+  return `あなたは表情筋・顔のバランスのセルフケアを支える、やさしく具体的なコーチです。医師ではなく診断はしません。
+
+これは同じ人の【練習の続きの一枚】です。さっきのアドバイスを受けて、舌の位置や頬の使い方を整えて撮り直しました。前回と今回を見比べて、変化を一緒に喜び、次の一歩だけを示してください。初対面のような全体説明は繰り返さないこと。
+
+アプリの客観測定値:
+【前回】
+${summaryText(prev)}
+【今回】
+${summaryText(now)}
+
+次の構成で、短めに・あたたかく・“続き”の温度で、日本語で答えてください。
+1. **さっきからの変化** — 良くなった点を具体的に認めて、しっかり褒める(例:「対称スコアが${prev.sym}→${now.sym}に上がりましたね」「口元の力みがやわらいで見えます」など、数値や見た目で)。数値がほぼ同じでも「整った状態をキープできています」と前向きに。
+2. **いま見えること** — 今の状態を1〜2文だけ簡潔に。
+3. **次の一歩** — いちばん意識すると良い点を【1つだけ】、具体的な動き(舌・奥歯・オトガイ・頬のどれか)としてやさしく。
+最後に、頑張りを認める一言と「この調子で、整えたらまた撮って見比べてみましょう」と促してください。
+重要: 「3-1-2」という語句や数字の並びは、どこにも絶対に出力しないこと。`;
 }
 
 // ===== AI分析 =====
@@ -377,14 +399,16 @@ async function analyzeWithAI() {
     alert("先に「⚙️ AIの設定」でGeminiのAPIキーを保存してください。");
     els.settings.open = true; return;
   }
+  const isFollowup = !!prevMetrics;
   els.adviceCard.hidden = false;
   els.adviceActions.hidden = true;
-  els.advice.innerHTML = `<div class="loading">AIが顔を見ています…<span class="dots"></span></div>`;
+  els.advice.innerHTML = `<div class="loading">${isFollowup ? "前回と見比べています" : "AIが顔を見ています"}…<span class="dots"></span></div>`;
   els.analyzeBtn.disabled = true;
   try {
     const base64 = resizedBase64();
+    const prompt = isFollowup ? buildFollowupPrompt(prevMetrics, latest) : buildPrompt(latest);
     const body = JSON.stringify({
-      contents: [{ parts: [{ text: buildPrompt(latest) }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
+      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
     });
     const resp = await getAdvice(key, body);
@@ -407,6 +431,7 @@ async function analyzeWithAI() {
     els.advice.innerHTML = miniMarkdown(text);
     els.advice.dataset.raw = text;
     els.adviceActions.hidden = false;
+    prevMetrics = { ...latest };   // 次回はこれと比べて“続き”で話す
   } catch (e) {
     console.error(e);
     const msg = e.name === "AbortError"
