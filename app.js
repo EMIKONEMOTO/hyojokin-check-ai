@@ -419,10 +419,10 @@ ${cond}
 
 ${isVideo ? "以下は普段 話している様子を動画から切り出した連続コマです。会話時の緊張や使いすぎに注目。" : "この顔写真を見てください。"}
 ${log && log.length ? "これまでの経過(対称スコア): " + log.map((s, i) => `${i + 1}回目 ${s.sym}`).join(" / ") + "\n" : ""}${prevAdvice ? "前回の内容(同じことは繰り返さない):「" + prevAdvice.slice(0, 220) + "」\n" : ""}
-次の構成で、日本語でやさしく答えてください(番号は付けない、「3-1-2」という語句は出さない):
-- **いま気になるところ** — 緊張・凝り・こわばりが出ていそうな所(首・肩・あご・こめかみ・健側の使いすぎなど)を、責めずにそっと。左右差には「医療的な要因が背景にあるかもしれません」とやわらかく触れてよい。
-- **ラクにするケア** — その場でできる“ゆるめる系”を1〜2個(どこを・どうやさしく)。温め／さすり／脱力／呼吸など。無理に動かす指示はしない。
-- ひとこと — 「担当の先生の治療やリハビリと一緒に、できる範囲で」と、あたたかく。${SCORE_LINE}`;
+次の構成で、日本語でやさしく、でも“前向きで希望が持てる”トーンで答えてください(番号は付けない、「3-1-2」という語句は出さない):
+- **いいところ・気になるところ** — まず、写真から見える良い点・できていること(穏やかな表情、健側の動き、ゆるんでいる所など)を必ず一つ拾って、具体的に認める。そのうえで、緊張・凝り・こわばりが出ていそうな所(首・肩・あご・こめかみ・健側の使いすぎ)を責めずにそっと。左右差には「医療的な要因が背景にあるかもしれません」とやわらかく。
+- **今日のケア** — その場でできる“ゆるめる系”を1〜2個(どこを・どうやさしく)。温め／さすり／脱力／呼吸など。無理に動かす指示はしない。やってみたくなるよう具体的に。
+- **続けると** — このケアを重ねると期待できることを、希望が持てる形で一言(断定せず「こわばりが和らいで、表情が動かしやすく感じられることもあります」のように)。小さな変化も一緒に見ていける、また試したくなる前向きな締めに。「担当の先生の治療やリハビリと一緒に、できる範囲で」も添える。${SCORE_LINE}`;
 }
 
 // 話す動画（連続コマ）用プロンプト
@@ -605,19 +605,19 @@ els.copyAdvice.addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(t); els.copyAdvice.textContent = "コピーしました"; setTimeout(() => (els.copyAdvice.textContent = "コピー"), 1500); } catch {}
 });
 
-// AIの使い方スコアをチップ表示
+// AIの使い方スコアをチップ表示（すべて「高いほど良い」に統一）
 function renderScores(s) {
   if (!s) { els.aiScores.hidden = true; els.aiScores.innerHTML = ""; return; }
-  const chip = (label, val, lowerBetter) => {
-    const good = lowerBetter ? val <= 3 : val >= 7;
-    const warn = lowerBetter ? val >= 7 : val <= 3;
+  const chip = (label, val) => {  // val: 0〜10、高いほど良い
+    const good = val >= 7, warn = val <= 3;
+    const word = good ? "良い" : warn ? "あと少し" : "ふつう";
     const cls = good ? "good" : warn ? "warn" : "";
-    return `<span class="score-chip ${cls}"><span class="score-k">${label}</span> <b>${val}</b><small>/10</small></span>`;
+    return `<span class="score-chip ${cls}"><span class="score-k">${label}</span> <b>${val}</b><small>/10</small> <span class="score-word">${word}</span></span>`;
   };
-  els.aiScores.innerHTML = `<span class="scores-title">AI評価</span>`
-    + chip("口元の力み", s.tension, true)
-    + chip("首の緊張", s.neck, true)
-    + chip("ニュートラル", s.neutral, false);
+  els.aiScores.innerHTML = `<span class="scores-title">AI評価（高いほど良い）</span>`
+    + chip("口元のゆるみ", 10 - s.tension)
+    + chip("首のラクさ", 10 - s.neck)
+    + chip("ニュートラル", s.neutral);
   els.aiScores.hidden = false;
 }
 
@@ -700,7 +700,7 @@ function renderHistory() {
         <span><span class="hist-date">${fmtDate(r.date)}</span>${tag}</span>
         ${note}
         <span class="hist-metrics">
-          ${isFinite(r.tension) ? `<span>力み ${r.tension}</span>` : ""}${isFinite(r.neutral) ? `<span>ニュートラル ${r.neutral}</span>` : ""}<span>対称 ${r.sym}</span>
+          ${isFinite(r.tension) ? `<span>ゆるみ ${10 - r.tension}</span>` : ""}${isFinite(r.neutral) ? `<span>ニュートラル ${r.neutral}</span>` : ""}<span>対称 ${r.sym}</span>
         </span>
       </span>
       <button class="hist-del" title="削除">✕</button>`;
@@ -726,8 +726,8 @@ function renderCompare() {
   const img = (r) => r.thumb ? `<img src="${r.thumb}" alt="" />` : `<div class="hist-thumb placeholder" style="width:100%;height:160px">写真なし</div>`;
   const both = (k) => isFinite(a[k]) && isFinite(b[k]);
   const deltas = [
-    ...(both("tension") ? [{ label: "口元の力み", a: a.tension, b: b.tension, better: "down" }] : []),
-    ...(both("neck") ? [{ label: "首の緊張", a: a.neck, b: b.neck, better: "down" }] : []),
+    ...(both("tension") ? [{ label: "口元のゆるみ", a: 10 - a.tension, b: 10 - b.tension, better: "up" }] : []),
+    ...(both("neck") ? [{ label: "首のラクさ", a: 10 - a.neck, b: 10 - b.neck, better: "up" }] : []),
     ...(both("neutral") ? [{ label: "ニュートラル", a: a.neutral, b: b.neutral, better: "up" }] : []),
     { label: "対称スコア", a: a.sym, b: b.sym, better: "up" },
     { label: "目の左右差%", a: a.eyeAsym, b: b.eyeAsym, better: "down" },
@@ -752,20 +752,25 @@ function renderChart() {
   if (arr.length < 2) { els.trend.hidden = true; return; }
   els.trend.hidden = false;
   const key = els.trendMetric.value;
-  const vals = arr.map((r) => r[key]).filter((v) => isFinite(v));
+  const metricOf = (r) =>
+    key === "relaxMouth" ? (isFinite(r.tension) ? 10 - r.tension : undefined) :
+    key === "relaxNeck" ? (isFinite(r.neck) ? 10 - r.neck : undefined) :
+    r[key];
+  const pts = arr.filter((r) => isFinite(metricOf(r)));
+  const vals = pts.map(metricOf);
   if (vals.length < 2) { els.trend.hidden = true; return; }
-  const W = Math.max(320, arr.length * 46), H = 160, pad = { l: 34, r: 12, t: 12, b: 24 };
+  const W = Math.max(320, pts.length * 46), H = 160, pad = { l: 34, r: 12, t: 12, b: 24 };
   let min = Math.min(...vals), max = Math.max(...vals);
   if (key === "sym") { min = Math.min(min, 70); max = 100; }
-  else if (key === "tension" || key === "neck" || key === "neutral") { min = 0; max = 10; }
+  else if (key === "relaxMouth" || key === "relaxNeck" || key === "neutral") { min = 0; max = 10; }
   else { min = 0; max = Math.max(max, 20); }
   if (min === max) { min -= 1; max += 1; }
-  const x = (i) => pad.l + (i * (W - pad.l - pad.r)) / (arr.length - 1);
+  const x = (i) => pad.l + (i * (W - pad.l - pad.r)) / (pts.length - 1);
   const y = (v) => pad.t + (1 - (v - min) / (max - min)) * (H - pad.t - pad.b);
   const grid = [0, 0.5, 1].map((f) => { const v = min + (max - min) * (1 - f), yy = pad.t + f * (H - pad.t - pad.b);
     return `<line x1="${pad.l}" y1="${yy}" x2="${W - pad.r}" y2="${yy}" stroke="#e6e8f0"/><text x="2" y="${yy + 3}" font-size="9" fill="#9aa1b2">${Math.round(v)}</text>`; }).join("");
-  const line = arr.map((r, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ");
-  const dots = arr.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[key]).toFixed(1)}" r="4" fill="${TAG_COLOR[r.tag] || "#e86a92"}"><title>${fmtDate(r.date)}: ${Math.round(r[key])}</title></circle>`).join("");
+  const line = pts.map((r, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(metricOf(r)).toFixed(1)}`).join(" ");
+  const dots = pts.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(metricOf(r)).toFixed(1)}" r="4" fill="${TAG_COLOR[r.tag] || "#e86a92"}"><title>${fmtDate(r.date)}: ${Math.round(metricOf(r))}</title></circle>`).join("");
   els.chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${grid}<path d="${line}" fill="none" stroke="#e86a92" stroke-width="2"/>${dots}</svg>`;
 }
 

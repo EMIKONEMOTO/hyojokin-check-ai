@@ -199,6 +199,9 @@ main {
 .score-chip .score-k { color: var(--ink-soft); }
 .score-chip b { font-variant-numeric: tabular-nums; font-size: 1rem; }
 .score-chip small { color: var(--ink-soft); }
+.score-chip .score-word { font-size: .72rem; font-weight: 700; margin-left: 2px; color: var(--ink-soft); }
+.score-chip.good .score-word { color: var(--good); }
+.score-chip.warn .score-word { color: var(--warn); }
 .score-chip.good { background: #eafaf4; border-color: #c9efe1; }
 .score-chip.good b { color: var(--good); }
 .score-chip.warn { background: #fdf4e0; border-color: #f3e2bd; }
