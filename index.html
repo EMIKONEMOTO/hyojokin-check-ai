@@ -77,6 +77,11 @@
 
     <!-- AI分析アクション -->
     <section class="analyze-wrap">
+      <div class="condition-bar">
+        <label class="toggle"><input type="checkbox" id="conditionMode" /><span>🩺 医療的な左右差に配慮する（麻痺・斜視など）</span></label>
+        <input type="text" id="conditionNote" class="note-input" placeholder="例：右の顔面神経麻痺（任意・端末内のみ）" maxlength="40" hidden />
+        <p class="condition-hint" hidden>※ 「直す」助言ではなく、凝り・力みをゆるめるケア中心に切り替わります。治療は主治医・リハビリと一緒に。</p>
+      </div>
       <button id="analyzeBtn" class="btn btn-primary btn-analyze" disabled>🤖 AIに分析してもらう</button>
       <div class="analyze-opts">
         <label class="toggle"><input type="checkbox" id="showMesh" /><span>測定ポイントを表示</span></label>
@@ -154,6 +159,6 @@
     <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
-  <script type="module" src="app.js?v=20261118g"></script>
+  <script type="module" src="app.js?v=20261118h"></script>
 </body>
 </html>
