@@ -24,7 +24,7 @@ const els = {
   adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"),
   summaryCard: $("summaryCard"), summary: $("summary"),
   apiKey: $("apiKey"), saveKey: $("saveKey"), keyStatus: $("keyStatus"), settings: $("settings"),
-  saveBtn: $("saveBtn"), exportBtn: $("exportBtn"), clearBtn: $("clearBtn"), history: $("history"),
+  saveBtn: $("saveBtn"), clearBtn: $("clearBtn"), history: $("history"),
   tagBtns: $("tagBtns"), noteInput: $("noteInput"),
   trend: $("trend"), trendMetric: $("trendMetric"), chart: $("chart"),
   comparePanel: $("comparePanel"), historyHint: $("historyHint"),
@@ -290,7 +290,7 @@ function buildPrompt(m) {
 この顔写真を見て、上の観点で観察してください。アプリによる客観測定値(参考):
 ${summaryText(m)}
 
-次の構成で、あたたかく具体的に、日本語で答えてください。専門用語には短い補足を。長すぎないように。
+次の構成で、あたたかく具体的に、日本語で答えてください。専門用語には短い補足を。長すぎないように。トーンは落ち着いて正直に——ほめ言葉は大げさにせず控えめに(多くても1〜2回)、お世辞っぽくしない。
 1. **いま見えること** — どこがどう引っ張られている/力んでいるか、左右差、口角か頬か、首や顎の緊張の兆候を、写真に即して具体的に(断定しすぎず「〜に見えます」)。
 2. **なぜそうなりやすいか** — 1〜2文で簡単に。
 3. **今日ためしてみて** — 「まず、順番にやってみましょう」のようにやさしく導入し(「3-1-2」等の名称や番号は出さない)、すぐその場でできる「動き」を1〜3個、1→2→3の手順で。必ず次を“動かし方・置き方”として具体的に含めてください:
@@ -314,11 +314,12 @@ ${summaryText(prev)}
 【今回】
 ${summaryText(now)}
 
-次の構成で、短めに・あたたかく・“続き”の温度で、日本語で答えてください。
-1. **さっきからの変化** — 良くなった点を具体的に認めて、しっかり褒める(例:「対称スコアが${prev.sym}→${now.sym}に上がりましたね」「口元の力みがやわらいで見えます」など、数値や見た目で)。数値がほぼ同じでも「整った状態をキープできています」と前向きに。
-2. **いま見えること** — 今の状態を1〜2文だけ簡潔に。
+トーン: 落ち着いて正直に。ほめ言葉は大げさにせず、多くても1回まで。お世辞っぽくしない。短め。
+次の構成で、“続き”の温度で、日本語で答えてください。
+1. **さっきからの変化** — 変わった点を1つ、さらっと事実として伝える(例:「対称スコアが${prev.sym}→${now.sym}」「口元の力みが少しやわらいで見えます」)。ほぼ同じなら「整った状態をキープできています」と一言だけ。
+2. **いま見えること** — 今の状態を1文だけ簡潔に。
 3. **次の一歩** — いちばん意識すると良い点を【1つだけ】、具体的な動き(舌・奥歯・オトガイ・頬のどれか)としてやさしく。
-最後に、頑張りを認める一言と「この調子で、整えたらまた撮って見比べてみましょう」と促してください。
+最後に「この調子で、整えたらまた撮って見比べてみましょう」と一言で促してください(大げさな称賛は不要)。
 重要: 「3-1-2」という語句や数字の並びは、どこにも絶対に出力しないこと。`;
 }
 
@@ -509,12 +510,6 @@ els.saveBtn.addEventListener("click", () => {
 });
 els.clearBtn.addEventListener("click", () => {
   if (confirm("記録をすべて削除します。よろしいですか？")) { saveRecords([]); picked = []; refreshRecordUI(); }
-});
-els.exportBtn.addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(loadRecords(), null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = `表情筋記録_${new Date().toISOString().slice(0, 10)}.json`; a.click();
-  URL.revokeObjectURL(url);
 });
 els.trendMetric.addEventListener("change", renderChart);
 
