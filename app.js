@@ -24,6 +24,7 @@ const els = {
   conditionNote: $("conditionNote"),
   adviceCard: $("adviceCard"), advice: $("advice"), copyAdvice: $("copyAdvice"),
   adviceActions: $("adviceActions"), reshootBtn: $("reshootBtn"), aiScores: $("aiScores"),
+  chatBox: $("chatBox"), chatMsgs: $("chatMsgs"), chatForm: $("chatForm"), chatInput: $("chatInput"), chatSend: $("chatSend"),
   summaryCard: $("summaryCard"), summary: $("summary"),
   apiKey: $("apiKey"), saveKey: $("saveKey"), keyStatus: $("keyStatus"), settings: $("settings"),
   saveBtn: $("saveBtn"), clearBtn: $("clearBtn"), history: $("history"),
@@ -43,6 +44,7 @@ let sessionLog = [];          // この練習セッションの各回 {sym,eyeAs
 let prevAdvice = "";          // 前回AIが伝えた本文（繰り返し防止用）
 let lastScores = null;        // 直近AIの使い方スコア {tension,neck,neutral}
 let videoFrames = [];         // 動画から切り出したコマ(JPEG dataURL配列)
+let chatContents = [];        // AIとの会話履歴(Gemini contents形式。先頭に画像＋初回分析)
 
 function setMsg(t) {
   if (!t) els.stageMsg.classList.add("hidden");
@@ -96,6 +98,7 @@ function resetStill() {
   els.adviceCard.hidden = true;
   els.adviceActions.hidden = true;
   els.aiScores.hidden = true; els.aiScores.innerHTML = "";
+  els.chatBox.hidden = true; els.chatMsgs.innerHTML = ""; chatContents = [];
   lastScores = null;
   els.retake.hidden = true;
 }
@@ -350,29 +353,42 @@ els.saveKey.addEventListener("click", () => {
   els.settings.open = false;
 });
 
-// ===== プロンプト =====
+// ===== 知識ベース（全AI応答の土台。ここを育てると“エミさん流”が一貫する） =====
+const KNOWLEDGE_BASE = `あなたは、表情筋・顎・舌・首のつながりに精通した、やさしく具体的なセルフケアの伴走コーチです。鍼灸・解剖学・神経の知識を持ちますが、医師ではなく、診断や治療はしません。相手を責めず、できている所を拾い、希望の持てる言葉で導きます。短く、あたたかく、具体的に。断定しすぎず「〜に見えます」。
+
+# 指導の土台となる方法（この考え方で一貫して導くこと）
+- 顔・顎・舌・首は一つのユニットとして連動する。顎関節・奥歯・舌と、首の深層筋（胸鎖乳突筋・斜角筋・肩甲挙筋・後頭下筋群）はつながって働く。
+- 舌（インナー）が上あごにふんわり吸着して土台ができると、下顎が安定し、奥歯の噛みしめや首の力みが抜けやすい。逆に舌の支えが弱いと下顎が不安定になり、奥歯・耳まわり・首で踏ん張って支えてしまう（首が“突っ張り棒”のように働き続ける）。
+- ニュートラル（脱力）の作り方：①舌全体を上あごへ軽い陰圧でふんわり吸着（舌先は上の前歯の少し後ろのスポット）②上下の奥歯を1〜2mm離して噛みしめをオフ ③オトガイ（下唇・顎先）の力を抜く。順番にやさしく整える。※「3-1-2」という呼び名や番号は相手に出さない。
+- 笑顔は、口角を横・奥へ引く代償（笑筋・頬筋・広頚筋）ではなく、頬のトップ（大頬骨筋）を斜め上へ持ち上げ、目元がゆるむのが理想。「口角そのものを引く」のか「頬の筋肉で持ち上げる」のかを見分ける。
+- 会話で下顎を大きく動かすと咀嚼筋から首まで引っ張られる。舌先と唇の小さな動きで話すと負担が減る。
+- 力みが抜けると、頭蓋底や目の奥の締め付けがゆるみ、目の開き・左右差・フェイスラインが整いやすい。朝は力みで重く、夜は脱力が定着してパッチリ、という日内差も起こりうる。
+- 着目点：首の縦スジ（広頚筋）、口角横の深い溝、下唇の巻き込み、目の開きの左右差。
+
+# 筋肉の知識
+- 表情筋は顔面神経（第7脳神経）支配。大頬骨筋＝口角を上外側（斜め上）へ。笑筋＝口角を外側（横）へ。広頚筋＝首の浅い膜状の筋で口角を下げ首に縦スジを作る。オトガイ筋＝下唇・顎先、力むと梅干しジワ。口輪筋＝口を閉じる。頬筋＝頬を歯に押しつける。
+- 咀嚼筋は三叉神経（第5脳神経）支配。咬筋・側頭筋は噛みしめで緊張しやすい。翼突筋。
+- 舌・舌骨まわり：舌筋、舌骨上筋群。低位舌の改善＝上あごへの吸着。
+- 首：胸鎖乳突筋(SCM)、斜角筋、肩甲挙筋、後頭下筋群。頭位・姿勢と連動し、代償で過緊張しやすい。
+
+# 神経の知識（ていねいに扱う）
+- 表情筋＝顔面神経、咀嚼筋＝三叉神経。麻痺や神経の障害がある場合、左右差は「癖」ではなく神経の問題。無理に動かすことを促さない。
+- 顔面神経麻痺などがある方には、患側を“直す”のではなく、健側の使いすぎ・首や肩の代償の凝り・こわばりをゆるめるケアを中心に。回復や治療は必ず主治医・リハビリと一緒に。
+
+# 姿勢
+医療的な診断・治療はしない。専門用語には短い補足を。相手の気持ちを大切に、前向きに。`;
+
+// ===== プロンプト（タスク部分。知識はsystemInstructionのKNOWLEDGE_BASEが担う） =====
 function buildPrompt(m) {
-  return `あなたは表情筋・顔のバランスのセルフケアを支える、やさしく具体的なコーチです。医師ではなく、診断はしません。
-
-相手は、顎・舌・首の脱力をベースに表情筋を整える取り組みをしています。前提となる考え方:
-- 舌を上あごにふんわり吸着・奥歯を離す・オトガイ(下唇/顎先)を脱力する3ステップでニュートラルを作る(この「3-1-2」という呼び名やステップ番号は内部用語なので、回答には絶対に書かないこと)。
-- 笑うとき、口角を「真横・奥」へ引く代償(笑筋・頬筋・首の広頚筋)が癖になりやすい。理想は、頬のトップ(大頬骨筋)を斜め上に持ち上げ、目元がゆるむ笑顔。
-- 「口角そのものを引き上げている」のか「頬の筋肉で持ち上げている」のかを見分けたい。
-- 下顎を大きく動かす会話は咀嚼筋〜首を引っ張る。首の縦スジ(広頚筋)・口角横の深い溝・下唇の巻き込み・目の開きの左右差・朝夜での変化に注目。
-
-この顔写真を見て、上の観点で観察してください。アプリによる客観測定値(参考):
+  return `この顔写真を見て観察し、次の構成で日本語で答えてください。長すぎないように。トーンは落ち着いて正直に——ほめ言葉は控えめ(多くても1〜2回)、お世辞っぽくしない。
+アプリの客観測定値(参考):
 ${summaryText(m)}
 
-次の構成で、あたたかく具体的に、日本語で答えてください。専門用語には短い補足を。長すぎないように。トーンは落ち着いて正直に——ほめ言葉は大げさにせず控えめに(多くても1〜2回)、お世辞っぽくしない。
-1. **いま見えること** — どこがどう引っ張られている/力んでいるか、左右差、口角か頬か、首や顎の緊張の兆候を、写真に即して具体的に(断定しすぎず「〜に見えます」)。
+1. **いま見えること** — どこがどう引っ張られている/力んでいるか、左右差、口角か頬か、首や顎の緊張の兆候を、写真に即して具体的に。
 2. **なぜそうなりやすいか** — 1〜2文で簡単に。
-3. **今日ためしてみて** — 「まず、順番にやってみましょう」のようにやさしく導入し(「3-1-2」等の名称や番号は出さない)、すぐその場でできる「動き」を上から順に。各手順は先頭に番号(1. 2. 等)を付けず、「**舌のポジションを整える**」のような太字の小見出し＋短い説明の形で並べてください。必ず次を“動かし方・置き方”として具体的に含めてください:
-   - **舌の位置**: 舌先を上の前歯の少し後ろ(スポット)に置き、舌全体を上あごへふんわり吸い上げる(軽い陰圧)。どのくらいの力か・どこに当てるかを言葉で。
-   - **奥歯**: 上下の奥歯を1〜2mm離して噛み締めをオフにする。
-   - **オトガイ(下唇・顎先)**: 力をスッと抜く。
-   写真で気になった部分(例:右の口角・首の緊張)に合わせて、手の当て方や目元・頬の動かし方も1つ添える。鼻呼吸や姿勢のひとことも歓迎。
-最後に、はげましの一言とともに「いまの助言どおりに舌の位置や頬の使い方を整えて、もう一度撮って見比べてみましょう」と、やさしく“もう一枚撮って練習する”ことを促してください。
-重要: 「3-1-2」という語句や数字の並び(3-1-2 / 3,1,2 等)は、名称・見出し・本文のどこにも絶対に出力しないこと。${SCORE_LINE}`;
+3. **今日ためしてみて** — 「まず、順番にやってみましょう」とやさしく導入し、すぐできる「動き」を上から順に。各手順は番号を付けず「**舌のポジションを整える**」のような太字の小見出し＋短い説明で。舌の位置(舌全体を上あごへ軽い陰圧でふんわり)、奥歯(1〜2mm離す)、オトガイ(力を抜く)を“動かし方・置き方”として含め、写真で気になった部分に合わせた手の当て方や頬・目元の動かし方も1つ添える。鼻呼吸や姿勢のひとことも歓迎。
+最後に、はげましとともに「整えて、もう一度撮って見比べてみましょう」と練習を促す。
+重要: 「3-1-2」という語句や数字の並びは、どこにも出力しないこと。${SCORE_LINE}`;
 }
 
 // 2回目以降（撮り直し）用：これまでの流れをふまえ、毎回ちがう切り口で深掘りするコーチ
@@ -382,13 +398,7 @@ function buildFollowupPrompt(log, now, prevAdvice) {
     (isFinite(s.tension) ? `・力み${s.tension}/首${s.neck}/ニュートラル${s.neutral}` : "")
   ).join("\n");
   const n = log.length + 1;
-  return `あなたは、顔・顎・舌・首の連動に精通したベテランのセルフケア指導者です(鍼灸・解剖学の視点も持つ)。医師ではなく診断はしません。前提の考え方:
-- 顎関節・奥歯・舌と、首の深層筋(胸鎖乳突筋・斜角筋・肩甲挙筋・後頭下筋群)は一つのユニットとして連動する。
-- 舌(インナー)の支えが弱いと下顎が不安定になり、奥歯や耳周り・首で踏ん張って支えてしまう。舌が上あごに吸着して土台ができると、噛みしめや首の力みが抜けやすい。
-- 理想の笑顔は、口角を横に引く(笑筋・広頚筋)のではなく、頬のトップ(大頬骨筋)を斜め上に上げ、目元がゆるむ。
-- 力みが抜けると、頭蓋底や目の奥の締め付けがゆるみ、目の開き・左右差・フェイスラインが整う。
-
-これは同じ人が【練習しながら何度も撮り直している、${n}回目の一枚】です。毎回ちがう気づきを与え、飽きさせず、少しずつ深めてください。
+  return `これは同じ人が【練習しながら何度も撮り直している、${n}回目の一枚】です。毎回ちがう気づきを与え、飽きさせず、少しずつ深めてください。
 
 この練習セッションのこれまでの流れ:
 ${journey}
@@ -407,9 +417,7 @@ ${prevAdvice ? `\n前回あなたが伝えた内容(今回はこれと同じ助�
 // 医療的な左右差（麻痺・斜視など）に配慮したプロンプト
 function buildConditionPrompt(note, { isVideo, log, prevAdvice }) {
   const cond = note ? `この方には医療的な状態があります:「${note}」。` : `この方の顔の左右差には、医療的な要因(神経の麻痺・斜視など)が背景にある可能性があります。`;
-  return `あなたは、顔・顎・首のケアに詳しい、やさしく丁寧なセルフケアの伴走者です。医師ではなく、診断や治療はしません。
-
-${cond}
+  return `${cond}
 【厳守する前提】
 - 顔の左右差を「本人の悪い癖」「サボり」のように扱わない。決して責めない。
 - 麻痺している側の筋肉を「もっと動かして」と無理に促さない(動かせないことがある)。左右差を「矯正して直す」という言い方をしない。
@@ -427,9 +435,7 @@ ${log && log.length ? "これまでの経過(対称スコア): " + log.map((s, i
 
 // 話す動画（連続コマ）用プロンプト
 function buildVideoPrompt() {
-  return `あなたは、顔・顎・舌・首の連動に精通したベテランのセルフケア指導者です(鍼灸・解剖学の視点も持つ)。医師ではなく診断はしません。
-
-以下の複数枚は、ある人が【普段 話している様子】を動画から時系列に切り出した連続コマです。1枚ずつではなく"話している最中の動き"として見てください。会話で下顎を大きく動かすと咀嚼筋から首(広頚筋など)まで引っ張られやすい、という観点が大切です。
+  return `以下の複数枚は、ある人が【普段 話している様子】を動画から時系列に切り出した連続コマです。1枚ずつではなく"話している最中の動き"として見てください。会話で下顎を大きく動かすと咀嚼筋から首(広頚筋など)まで引っ張られやすい、という観点が大切です。
 
 次の観点で観察してください:
 - 話すときに口角を横へ引く癖(笑筋・広頚筋)が出ていないか、左右で引っ張られ方に差はないか。
@@ -534,14 +540,15 @@ async function analyzeWithAI() {
       : isVideo ? buildVideoPrompt()
       : isFollowup ? buildFollowupPrompt(sessionLog, latest, prevAdvice)
       : buildPrompt(latest);
-    const parts = [{ text: prompt }];
+    const userParts = [{ text: prompt }];
     if (isVideo) {
-      for (const f of videoFrames) parts.push({ inline_data: { mime_type: "image/jpeg", data: f.split(",")[1] } });
+      for (const f of videoFrames) userParts.push({ inline_data: { mime_type: "image/jpeg", data: f.split(",")[1] } });
     } else {
-      parts.push({ inline_data: { mime_type: "image/jpeg", data: resizedBase64() } });
+      userParts.push({ inline_data: { mime_type: "image/jpeg", data: resizedBase64() } });
     }
     const body = JSON.stringify({
-      contents: [{ parts }],
+      systemInstruction: { parts: [{ text: KNOWLEDGE_BASE }] },
+      contents: [{ role: "user", parts: userParts }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
     });
     const resp = await getAdvice(key, body);
@@ -569,6 +576,12 @@ async function analyzeWithAI() {
     els.advice.dataset.raw = clean;
     renderScores(lastScores);
     els.adviceActions.hidden = false;
+    // この分析を“会話の始まり”として保持し、チャットを開く
+    chatContents = [
+      { role: "user", parts: userParts },
+      { role: "model", parts: [{ text: clean }] },
+    ];
+    startChat();
     // 静止画の練習は、この回をセッション履歴に積む（次回はこれまでの流れをふまえて話す）
     if (!isVideo && latest) {
       sessionLog.push({ sym: latest.sym, eyeAsym: latest.eyeAsym, mouthAsym: latest.mouthAsym, ...(lastScores || {}) });
@@ -598,6 +611,61 @@ els.copyAdvice.addEventListener("click", async () => {
   const t = els.advice.dataset.raw || els.advice.textContent;
   try { await navigator.clipboard.writeText(t); els.copyAdvice.textContent = "コピーしました"; setTimeout(() => (els.copyAdvice.textContent = "コピー"), 1500); } catch {}
 });
+
+// ===== チャット（分析を会話の始まりとして続ける） =====
+function startChat() {
+  els.chatMsgs.innerHTML = "";
+  els.chatBox.hidden = false;
+}
+function appendChatMsg(who, text, loading) {
+  const el = document.createElement("div");
+  el.className = "chat-msg " + who + (loading ? " loading" : "");
+  if (who === "ai" && !loading) el.innerHTML = miniMarkdown(text);
+  else el.textContent = text;
+  els.chatMsgs.appendChild(el);
+  els.chatMsgs.scrollTop = els.chatMsgs.scrollHeight;
+  return el;
+}
+els.chatForm.addEventListener("submit", (e) => { e.preventDefault(); sendChat(); });
+async function sendChat() {
+  const msg = els.chatInput.value.trim();
+  if (!msg || !chatContents.length) return;
+  const key = getKey();
+  if (!key) { alert("先に「⚙️ AIの設定」でGeminiのAPIキーを保存してください。"); els.settings.open = true; return; }
+  els.chatInput.value = "";
+  appendChatMsg("user", msg);
+  chatContents.push({ role: "user", parts: [{ text: msg }] });
+  const loadingEl = appendChatMsg("ai", "考えています…", true);
+  els.chatSend.disabled = true;
+  try {
+    const body = JSON.stringify({
+      systemInstruction: { parts: [{ text: KNOWLEDGE_BASE }] },
+      contents: chatContents,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 700 },
+    });
+    const resp = await getAdvice(key, body);
+    if (!resp || !resp.ok) {
+      loadingEl.classList.remove("loading");
+      loadingEl.innerHTML = `<span class="err">うまく返答できませんでした。少し時間をおいて、もう一度送ってみてください。</span>`;
+      chatContents.pop();
+      return;
+    }
+    const data = await resp.json();
+    let text = (data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "").replace(/\n*@@SCORES[^\n]*/i, "").trim();
+    if (!text) { loadingEl.classList.remove("loading"); loadingEl.textContent = "（返答を取得できませんでした）"; chatContents.pop(); return; }
+    chatContents.push({ role: "model", parts: [{ text }] });
+    loadingEl.classList.remove("loading");
+    loadingEl.innerHTML = miniMarkdown(text);
+  } catch (err) {
+    console.error(err);
+    loadingEl.classList.remove("loading");
+    loadingEl.innerHTML = `<span class="err">通信に失敗しました。接続を確認して再度お試しください。</span>`;
+    chatContents.pop();
+  } finally {
+    els.chatSend.disabled = false;
+    els.chatMsgs.scrollTop = els.chatMsgs.scrollHeight;
+  }
+}
 
 // AIの使い方スコアをチップ表示（すべて「高いほど良い」に統一）
 function renderScores(s) {

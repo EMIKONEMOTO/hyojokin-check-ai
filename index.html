@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>表情筋AIコーチ</title>
   <meta name="description" content="顔写真をAIが見て、どこの筋肉がどう引っ張っているか・左右差・今日やってみることを言葉でアドバイス。表情筋のセルフケアを客観測定とAIで。" />
-  <link rel="stylesheet" href="style.css?v=20261118l" />
+  <link rel="stylesheet" href="style.css?v=20261119" />
 </head>
 <body>
   <header class="site-header">
@@ -100,6 +100,16 @@
       <div class="advice-actions" id="adviceActions" hidden>
         <button id="reshootBtn" class="btn btn-primary">👄 舌・表情を整えて、もう一度撮る</button>
       </div>
+
+      <div class="chat" id="chatBox" hidden>
+        <div class="chat-title">💬 AIに質問・相談する（この写真と内容を覚えたまま答えます）</div>
+        <div class="chat-msgs" id="chatMsgs"></div>
+        <form class="chat-form" id="chatForm">
+          <input type="text" id="chatInput" class="chat-input" placeholder="例：右だけ力むのはなぜ？ / このケアで合ってる？" autocomplete="off" maxlength="300" />
+          <button type="submit" id="chatSend" class="btn btn-primary">送信</button>
+        </form>
+      </div>
+
       <p class="advice-note">※ セルフケアの参考です。医療的な診断ではありません。</p>
     </section>
 
@@ -159,6 +169,6 @@
     <p>表情筋AIコーチ — 顔の測定はブラウザ内。AIアドバイスは分析時のみGemini（Google）に画像を送信。医療行為ではありません。</p>
   </footer>
 
-  <script type="module" src="app.js?v=20261118l"></script>
+  <script type="module" src="app.js?v=20261119"></script>
 </body>
 </html>
